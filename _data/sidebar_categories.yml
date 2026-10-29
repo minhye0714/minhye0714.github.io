@@ -1,0 +1,17 @@
+# name 값은 포스트의 categories와 정확히 일치해야 합니다.
+# 이 파일에 적힌 순서대로 표시되며, 글이 없는 카테고리도 표시됩니다.
+- name: Tech
+  children:
+    - "AI & ML"
+    - OCR
+    - Engineering
+    - Math
+
+- name: Work
+  children:
+    - Agile
+    - Productivity
+
+- name: Experience
+
+- name: Thoughts

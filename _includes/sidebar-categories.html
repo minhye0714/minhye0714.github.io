@@ -1,0 +1,38 @@
+{% assign current_category = nil %}
+{% if page.type == 'category' %}
+  {% assign current_category = page.title %}
+{% endif %}
+<ul class="sidebar-categories" aria-label="카테고리별 글 목록">
+  {% for category in site.data.sidebar_categories %}
+    {% capture category_url %}/categories/{{ category.name | slugify | url_encode }}/{% endcapture %}
+    {% assign category_count = site.categories[category.name] | size %}
+    <li class="sidebar-category-group">
+      <a
+        href="{{ category_url | relative_url }}"
+        class="sidebar-category-link sidebar-category-parent{% if current_category == category.name or page.categories contains category.name %} is-current{% endif %}"
+        {% if current_category == category.name %}aria-current="page"{% endif %}
+      >
+        <span>{{ category.name | escape }}</span>
+        <span class="sidebar-category-count" aria-label="글 {{ category_count }}개">{{ category_count }}</span>
+      </a>
+      {% if category.children.size > 0 %}
+        <ul class="sidebar-subcategories">
+          {% for child in category.children %}
+            {% capture child_url %}/categories/{{ child | slugify | url_encode }}/{% endcapture %}
+            {% assign child_count = site.categories[child] | size %}
+            <li>
+              <a
+                href="{{ child_url | relative_url }}"
+                class="sidebar-category-link{% if current_category == child or page.categories contains child %} is-current{% endif %}"
+                {% if current_category == child %}aria-current="page"{% endif %}
+              >
+                <span>{{ child | escape }}</span>
+                <span class="sidebar-category-count" aria-label="글 {{ child_count }}개">{{ child_count }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>

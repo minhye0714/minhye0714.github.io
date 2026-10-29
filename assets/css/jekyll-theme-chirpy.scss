@@ -1,0 +1,184 @@
+---
+---
+
+@use 'abstracts/variables' with (
+  $theme: '{{ site.theme_mode }}'
+);
+
+/* prettier-ignore */
+@use 'main
+{%- if jekyll.environment == 'production' -%}
+  .bundle
+{%- endif -%}
+';
+
+/* Home: keep Chirpy's post links and pagination, with a responsive card grid. */
+#post-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1.25rem;
+  align-content: start;
+
+  .card-wrapper {
+    min-width: 0;
+
+    &:not(:last-child) {
+      margin-bottom: 0;
+    }
+  }
+
+  .post-preview {
+    position: relative;
+    height: 100%;
+    flex-direction: column !important; /* Override Bootstrap's horizontal layout. */
+    overflow: hidden;
+    border: 1px solid var(--btn-border-color);
+    border-radius: 1rem;
+    box-shadow: none;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &::before {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--link-color);
+      outline-offset: 4px;
+    }
+
+    > [class^='col-'] {
+      width: 100%;
+    }
+
+    > :last-child {
+      display: flex;
+      flex: 1;
+    }
+  }
+
+  .card {
+    .preview-img,
+    .preview-img img {
+      border-radius: 0;
+    }
+
+    .preview-img img {
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+
+    .card-body {
+      width: 100%;
+      min-height: 16rem;
+      padding: 1.5rem;
+
+      .card-title {
+        font-size: 1.2rem;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .card-text.content {
+        font-size: 0.95rem;
+
+        p {
+          -webkit-line-clamp: 3;
+          line-clamp: 3;
+          min-height: 5.1em;
+          line-height: 1.7;
+        }
+      }
+
+      .post-meta {
+        flex-grow: 0 !important;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid var(--btn-border-color);
+
+        > div:first-child {
+          white-space: normal;
+        }
+      }
+    }
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  #post-list .post-preview:hover {
+    transform: translateY(-3px);
+    border-color: var(--link-color);
+    box-shadow: var(--card-shadow);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #post-list .post-preview {
+    transition: none;
+  }
+}
+
+/* Keep the category menu reachable on short screens and mobile drawers. */
+#sidebar {
+  .profile-wrapper,
+  .sidebar-bottom {
+    flex-shrink: 0;
+  }
+
+  nav {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  ul.sidebar-categories {
+    list-style: none;
+    margin: 0.25rem 0 0.75rem 1.1rem;
+    padding: 0;
+  }
+
+  .sidebar-category-group + .sidebar-category-group {
+    margin-top: 0.35rem;
+  }
+
+  ul.sidebar-subcategories {
+    list-style: none;
+    margin: 0.1rem 0 0 0.7rem;
+    padding-left: 0.45rem;
+    border-left: 1px solid var(--sidebar-border-color);
+  }
+
+  a.sidebar-category-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+
+    &:hover,
+    &.is-current {
+      color: var(--sidebar-active-color);
+      background-color: var(--sidebar-hover-bg);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--sidebar-active-color);
+      outline-offset: 1px;
+    }
+  }
+
+  a.sidebar-category-parent {
+    font-weight: 600;
+  }
+
+  .sidebar-category-count {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    opacity: 0.65;
+    font-variant-numeric: tabular-nums;
+  }
+}
