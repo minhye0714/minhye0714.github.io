@@ -2,7 +2,6 @@
 title: "슬픈 AI 증후군 (Sad AI Syndrome)"
 date: 2026-10-29 12:00:00 +0900
 categories: [Thoughts]
-tags: [AI]
 ---
 
 _※ '슬픈 AI 증후군'은 실제 심리학 용어가 아니라, 내가 느낀 걸 내 마음대로 불러본 이름이다. (누군가 먼저 정의했을 수도...)_
