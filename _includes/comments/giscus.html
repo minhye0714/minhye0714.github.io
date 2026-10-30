@@ -80,6 +80,13 @@
     let threadMode = false;
     let lastMetadata;
 
+    function updateViewer(login) {
+      const viewer = typeof login === 'string' && login.length <= 100 ? login : '';
+      if (section.dataset.githubViewer === viewer) return;
+      section.dataset.githubViewer = viewer;
+      section.dispatchEvent(new CustomEvent('comments:giscus-auth'));
+    }
+
     function syncTheme() {
       const map = sharedReady && !threadMode ? composerThemeMap : themeMap;
       const theme = map[Theme.resolvedTheme];
@@ -128,6 +135,12 @@
     addEventListener('message', (event) => {
       const iframe = section.querySelector('.giscus-frame');
       if (event.origin === 'https://giscus.app' && event.source === iframe?.contentWindow) {
+        const giscus = event.data?.giscus;
+        if (giscus?.signOut || /Bad credentials|Invalid state value|State has expired/.test(giscus?.error || '')) {
+          updateViewer('');
+        } else if (giscus && Object.hasOwn(giscus, 'viewer')) {
+          updateViewer(giscus.viewer?.login);
+        }
         const discussionUrl = event.data?.giscus?.discussion?.url;
         const prefix = `https://github.com/${attributes['data-repo']}/discussions/`;
         if (typeof discussionUrl === 'string' && discussionUrl.startsWith(prefix)) {

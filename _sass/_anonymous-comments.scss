@@ -2,6 +2,7 @@
   .anonymous-comments-help,
   .anonymous-comment-status,
   .comment-load-status,
+  .github-comment-login-help,
   .comments-empty {
     color: var(--text-muted-color);
     font-size: 0.8125rem;
@@ -135,6 +136,7 @@
 
   .anonymous-comment-refresh,
   .anonymous-comment-delete,
+  .github-comment-delete,
   .comment-refresh,
   .comment-sort button,
   .github-thread-open,
@@ -173,7 +175,8 @@
       font-size: 0.75rem;
     }
 
-    .anonymous-comment-delete {
+    .anonymous-comment-delete,
+    .github-comment-delete {
       margin-left: auto;
     }
   }

@@ -15,7 +15,7 @@ async function until(condition) {
   throw new Error('Client did not reach the expected state');
 }
 
-function page(t, request, savedKeys, github = () => Response.json({ comments: [], next_cursor: null })) {
+function page(t, request, savedKeys, github = () => Response.json({ comments: [], next_cursor: null }), auth) {
   const dom = new JSDOM('<!doctype html><body></body>', { url: `${ORIGIN}/posts/sad-ai-syndrome/`, runScripts: 'outside-only' });
   t.after(() => dom.window.close());
   const { window } = dom;
@@ -27,11 +27,15 @@ function page(t, request, savedKeys, github = () => Response.json({ comments: []
   window.confirm = () => true;
   window.fetch = (url, options) => {
     const parsed = new URL(url);
-    if (parsed.pathname === '/github-comments') return Promise.resolve(github(parsed, options));
+    if (parsed.pathname.startsWith('/github-comments')) return Promise.resolve(github(parsed, options));
     const data = options.body ? JSON.parse(options.body) : undefined;
     return request(parsed.pathname + parsed.search, options.method, data);
   };
   if (savedKeys) window.localStorage.setItem('blog-comment-delete-keys:https://comments.example.test', savedKeys);
+  if (auth) {
+    window.localStorage.setItem('giscus-session', JSON.stringify(auth.session));
+    window.document.querySelector('.anonymous-comments').dataset.githubViewer = auth.viewer;
+  }
   window.eval(script);
   return window;
 }
@@ -194,4 +198,125 @@ test('giscus updates refresh the shared list after a new GitHub comment', async 
   document.querySelector('.anonymous-comments').dispatchEvent(new window.CustomEvent('comments:giscus-updated'));
   await until(() => rows(document).length === 1 && idle(document));
   assert.equal(rows(document)[0].classList.contains('github-comment'), true);
+});
+
+test('the existing giscus login enables deletion of own comments and replies without a second login', async (t) => {
+  const { request } = setup(t);
+  let githubRows = [
+    githubComment({ id: 'DC_own_123' }),
+    githubComment({ id: 'DC_other_123', author: { name: 'another-user' }, reply_count: 1,
+      replies: [githubComment({ id: 'DC_reply_123', body_html: '<p>my reply</p>' })] })
+  ];
+  const deletes = [];
+  const github = (url, options) => {
+    if (options.method === 'DELETE') {
+      deletes.push({ url, options, data: JSON.parse(options.body) });
+      const id = decodeURIComponent(url.pathname.split('/').at(-1));
+      githubRows = githubRows.filter((item) => item.id !== id);
+      githubRows.forEach((item) => { item.replies = item.replies.filter((reply) => reply.id !== id); item.reply_count = item.replies.length; });
+      return Response.json({ retained: false });
+    }
+    return Response.json({ comments: githubRows, next_cursor: null });
+  };
+  const window = page(t, request, null, github, { session: 'existing-giscus-session', viewer: 'Minhye0714' });
+  const document = window.document;
+  await until(() => rows(document).length === 2 && idle(document));
+  assert.equal(document.querySelectorAll('.github-comment-delete').length, 2);
+  assert.equal(document.querySelector('[data-comment-id="github:DC_other_123"] > header .github-comment-delete'), null);
+  assert.equal(document.querySelector('.github-comment-login-help').hidden, true);
+  document.querySelector('[data-comment-id="github:DC_own_123"] > header .github-comment-delete').click();
+  await until(() => rows(document).length === 1 && idle(document));
+  assert.deepEqual(deletes[0].data, { post: POST, session: 'existing-giscus-session' });
+  assert.equal(deletes[0].options.credentials, 'omit');
+  document.querySelector('.comment-reply .github-comment-delete').click();
+  await until(() => !document.querySelector('.comment-reply') && idle(document));
+  assert.equal(deletes.length, 2);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await until(() => idle(document));
+  assert.equal(document.querySelectorAll('.github-comment-delete').length, 0);
+  assert.equal(rows(document).length, 1);
+});
+
+test('logging in and out updates GitHub delete buttons while anonymous delete rights remain available', async (t) => {
+  const { request } = setup(t);
+  const input = draft();
+  await request('/comments', 'POST', input);
+  const window = page(t, request, JSON.stringify({ [input.id]: input.delete_token }), () => Response.json({ comments: [githubComment()], next_cursor: null }));
+  const document = window.document;
+  await until(() => rows(document).length === 2 && idle(document));
+  const root = document.querySelector('.anonymous-comments');
+  assert.equal(document.querySelector('.github-comment-delete'), null);
+  assert.equal(document.querySelector('.github-comment-login-help').hidden, false);
+  window.localStorage.setItem('giscus-session', JSON.stringify('logged-in-session'));
+  root.dataset.githubViewer = 'minhye0714';
+  root.dispatchEvent(new window.CustomEvent('comments:giscus-auth'));
+  assert.ok(document.querySelector('.github-comment-delete'));
+  window.localStorage.removeItem('giscus-session');
+  root.dataset.githubViewer = '';
+  root.dispatchEvent(new window.CustomEvent('comments:giscus-auth'));
+  assert.equal(document.querySelector('.github-comment-delete'), null);
+  assert.ok(document.querySelector('.anonymous-comment-delete'));
+});
+
+test('canceling a GitHub deletion or a failed request keeps the comment and unsent draft', async (t) => {
+  const { request } = setup(t);
+  let deletes = 0;
+  const github = (url, options) => {
+    if (options.method === 'DELETE') { deletes++; return Response.json({ error: 'try again' }, { status: 503 }); }
+    return Response.json({ comments: [githubComment()], next_cursor: null });
+  };
+  const window = page(t, request, null, github, { session: 'existing-session', viewer: 'minhye0714' });
+  const document = window.document;
+  await until(() => document.querySelector('.github-comment-delete') && idle(document));
+  document.querySelector('textarea').value = 'unsent draft';
+  window.confirm = () => false;
+  document.querySelector('.github-comment-delete').click();
+  assert.equal(deletes, 0);
+  window.confirm = () => true;
+  document.querySelector('.github-comment-delete').click();
+  await until(() => document.querySelector('.anonymous-comment-status').classList.contains('is-error') && idle(document));
+  assert.equal(deletes, 1);
+  assert.equal(rows(document).length, 1);
+  assert.equal(document.querySelector('textarea').value, 'unsent draft');
+});
+
+test('an expired session requests login and removes delete buttons without removing the comment', async (t) => {
+  const { request } = setup(t);
+  const github = (url, options) => options.method === 'DELETE'
+    ? Response.json({ error: 'sign in again' }, { status: 401 })
+    : Response.json({ comments: [githubComment()], next_cursor: null });
+  const window = page(t, request, null, github, { session: 'expired-session', viewer: 'minhye0714' });
+  const document = window.document;
+  await until(() => document.querySelector('.github-comment-delete') && idle(document));
+  document.querySelector('.github-comment-delete').click();
+  await until(() => !document.querySelector('.github-comment-delete') && idle(document));
+  assert.equal(rows(document).length, 1);
+  assert.equal(document.querySelector('.github-comment-login-help').hidden, false);
+});
+
+test('own minimized comments remain deletable, while deleted placeholders have no delete button', async (t) => {
+  const { request } = setup(t);
+  const window = page(t, request, null, () => Response.json({ comments: [
+    githubComment({ id: 'DC_minimized', hidden: true, deleted: false }),
+    githubComment({ id: 'DC_deleted', hidden: true, deleted: true })
+  ], next_cursor: null }), { session: 'existing-session', viewer: 'minhye0714' });
+  const document = window.document;
+  await until(() => rows(document).length === 2 && idle(document));
+  assert.ok(document.querySelector('[data-comment-id="github:DC_minimized"] .github-comment-delete'));
+  assert.equal(document.querySelector('[data-comment-id="github:DC_deleted"] .github-comment-delete'), null);
+});
+
+test('deleting a parent body preserves its replies in the shared list', async (t) => {
+  const { request } = setup(t);
+  const github = (url, options) => options.method === 'DELETE'
+    ? Response.json({ retained: true })
+    : Response.json({ comments: [githubComment({ reply_count: 1, replies: [githubComment({ id: 'DC_reply_123', author: { name: 'another-user' } })] })], next_cursor: null });
+  const window = page(t, request, null, github, { session: 'existing-session', viewer: 'minhye0714' });
+  const document = window.document;
+  await until(() => document.querySelector('.github-comment-delete') && idle(document));
+  document.querySelector('.github-comment-delete').click();
+  await until(() => !document.querySelector('.github-comment-delete') && idle(document));
+  assert.equal(rows(document).length, 1);
+  assert.equal(document.querySelectorAll('.comment-reply').length, 1);
+  assert.equal(rows(document)[0].querySelector('strong').textContent, '삭제된 사용자');
 });

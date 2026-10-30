@@ -73,6 +73,18 @@
     let pending = null;
     let refreshQueued = false;
     let refreshTimer;
+    let authRejected = false;
+
+    function githubSession() {
+      try {
+        const session = JSON.parse(localStorage.getItem('giscus-session') || 'null');
+        return typeof session === 'string' && session.length > 0 && session.length <= 4096 ? session : null;
+      } catch { return null; }
+    }
+
+    function githubViewer() {
+      return !authRejected && githubSession() ? (section.dataset.githubViewer || '').toLowerCase() : '';
+    }
 
     function message(text, isError = false) {
       status.textContent = text;
@@ -125,7 +137,11 @@
       });
       if (response.status === 204) return null;
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || '댓글을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+      if (!response.ok) {
+        const error = new Error(result.error || '댓글을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+        error.status = response.status;
+        throw error;
+      }
       return result;
     }
 
@@ -141,6 +157,62 @@
       button.type = 'button';
       button.className = 'github-thread-open';
       button.textContent = '답글·반응';
+      return button;
+    }
+
+    function removeGitHubComment(id, retained) {
+      for (const [commentKey, item] of comments) {
+        if (item.provider !== 'github') continue;
+        if (item.id === id) {
+          if (retained) {
+            item.hidden = true;
+            item.deleted = true;
+            item.body_html = '';
+            item.author = { name: '삭제된 사용자', avatar_url: '', url: '' };
+            item.upvotes = 0;
+            item.reactions = [];
+          } else comments.delete(commentKey);
+        } else if (item.replies?.some((reply) => reply.id === id)) {
+          item.replies = item.replies.filter((reply) => reply.id !== id);
+          item.reply_count = Math.max(0, item.reply_count - 1);
+        }
+      }
+      const source = sources.find((item) => item.provider === 'github');
+      source.buffer = source.buffer.filter((item) => item.id !== id);
+    }
+
+    function githubDeleteButton(comment) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'github-comment-delete';
+      button.textContent = '삭제';
+      button.setAttribute('aria-label', '내 GitHub 댓글 삭제');
+      button.addEventListener('click', async () => {
+        if (busy) return;
+        const session = githubSession();
+        if (!session || githubViewer() !== comment.author.name.toLowerCase()) {
+          message('위 댓글창에서 GitHub에 로그인해 주세요.', true);
+          render();
+          return;
+        }
+        const prompt = comment.reply_count > 0
+          ? '이 GitHub 댓글을 삭제할까요? 답글이 있는 댓글은 본문만 삭제되고 답글은 유지돼요.'
+          : '이 GitHub 댓글을 삭제할까요?';
+        if (!window.confirm(prompt)) return;
+        setBusy(true);
+        try {
+          const result = await api(`/github-comments/${encodeURIComponent(comment.id)}`, 'DELETE', { post, session });
+          removeGitHubComment(comment.id, result.retained);
+          render();
+          message(result.retained ? '댓글 본문을 삭제했어요. 답글은 유지됩니다.' : 'GitHub 댓글을 삭제했어요.');
+          // Refresh public data without its cache. Keep the existing giscus iframe
+          // mounted so an unsent GitHub comment draft is not discarded.
+          queueRefresh();
+        } catch (error) {
+          if (error.status === 401) { authRejected = true; render(); }
+          message(error.message, true);
+        } finally { setBusy(false); }
+      });
       return button;
     }
 
@@ -160,6 +232,9 @@
       time.dateTime = date.toISOString();
       time.textContent = dateFormat.format(date);
       header.append(name, badge, time);
+      if (github && !comment.deleted && githubViewer() === comment.author.name.toLowerCase()) {
+        header.appendChild(githubDeleteButton(comment));
+      }
       const avatarUrl = github && safeUrl(comment.author.avatar_url, true);
       if (avatarUrl) {
         const avatar = document.createElement('img');
@@ -249,6 +324,9 @@
       }
       more.hidden = !hasMore();
       count.textContent = `${comments.size}개${hasMore() ? '+' : ''}`;
+      root.querySelector('.github-comment-login-help').hidden = Boolean(githubViewer()) ||
+        !Array.from(comments.values()).some((item) => item.provider === 'github');
+      root.querySelectorAll('button:not(.github-thread-open)').forEach((button) => { button.disabled = busy; });
     }
 
     async function fill(source, fresh) {
@@ -366,6 +444,13 @@
       }
     });
     section.addEventListener('comments:giscus-updated', queueRefresh);
+    section.addEventListener('comments:giscus-auth', () => {
+      authRejected = false;
+      if (sources) render();
+    });
+    window.addEventListener('storage', (event) => {
+      if ((event.key === 'giscus-session' || event.key === null) && sources) render();
+    });
     section.addEventListener('comments:refresh', queueRefresh);
     section.dispatchEvent(new CustomEvent('comments:ready'));
     load(true);

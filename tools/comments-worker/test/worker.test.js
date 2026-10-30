@@ -168,6 +168,8 @@ test('GitHub reads use only the configured public repo, map the pathname correct
   assert.equal(upstream.searchParams.get('last'), '50');
   assert.deepEqual(newest.comments.map((row) => row.id), ['second', 'first']);
   assert.equal(newest.next_cursor, 'previous');
+  await request(`/github-comments?post=${encodeURIComponent('/posts/한글-글/')}`);
+  assert.equal(upstream.searchParams.get('term'), new URL('/posts/한글-글/', ORIGIN).pathname.substring(1));
   assert.equal((await request('/github-comments?post=/')).status, 400);
   assert.equal((await request(`/github-comments?post=${POST}&order=bad`)).status, 400);
   assert.equal((await request(`/github-comments?post=${POST}`, 'GET', undefined, { headers: { Origin: 'https://example.org' } })).status, 403);

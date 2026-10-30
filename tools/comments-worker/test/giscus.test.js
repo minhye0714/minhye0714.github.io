@@ -60,17 +60,27 @@ test('one giscus iframe switches between the composer and native interactions wh
   assert.ok(sent.every((item) => item.origin === 'https://giscus.app'));
 
   let changes = 0;
+  let authChanges = 0;
   section.addEventListener('comments:giscus-updated', () => { changes++; });
-  const data = { giscus: { discussion: { url: 'https://github.com/minhye0714/minhye0714.github.io/discussions/1', totalCommentCount: 1 } } };
+  section.addEventListener('comments:giscus-auth', () => { authChanges++; });
+  const data = { giscus: { viewer: { login: 'minhye0714' }, discussion: { url: 'https://github.com/minhye0714/minhye0714.github.io/discussions/1', totalCommentCount: 1 } } };
   const send = (origin, source) => window.dispatchEvent(new window.MessageEvent('message', { origin, source, data }));
   send('https://example.org', iframe.contentWindow);
   send('https://giscus.app', window);
   assert.equal(changes, 0);
+  assert.equal(authChanges, 0);
   send('https://giscus.app', iframe.contentWindow);
   send('https://giscus.app', iframe.contentWindow);
   assert.equal(changes, 1);
+  assert.equal(authChanges, 1);
+  assert.equal(section.dataset.githubViewer, 'minhye0714');
   data.giscus.discussion.totalCommentCount = 2;
   send('https://giscus.app', iframe.contentWindow);
   assert.equal(changes, 2);
   assert.equal(section.querySelector('.comment-manage-link').href, data.giscus.discussion.url);
+  window.dispatchEvent(new window.MessageEvent('message', {
+    origin: 'https://giscus.app', source: iframe.contentWindow, data: { giscus: { signOut: true } }
+  }));
+  assert.equal(section.dataset.githubViewer, '');
+  assert.equal(authChanges, 2);
 });
