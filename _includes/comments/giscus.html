@@ -48,16 +48,14 @@
     heading.append(title, manageLink);
     section.appendChild(heading);
 
-    let githubContainer = section;
+    const githubContainer = document.createElement('div');
+    githubContainer.className = 'github-comments';
+    githubContainer.setAttribute('aria-label', 'GitHub 댓글');
+    section.appendChild(githubContainer);
+
     const anonymousTemplate = document.getElementById('anonymous-comments-template');
     if (anonymousTemplate) {
       section.appendChild(anonymousTemplate.content.cloneNode(true));
-      githubContainer = document.createElement('details');
-      githubContainer.className = 'github-comments';
-      const summary = document.createElement('summary');
-      summary.textContent = 'GitHub 댓글 보기·작성';
-      githubContainer.appendChild(summary);
-      section.appendChild(githubContainer);
     }
 
     const script = document.createElement('script');

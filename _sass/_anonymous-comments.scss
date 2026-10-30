@@ -180,24 +180,34 @@
   }
 
   .anonymous-comments button:focus-visible,
-  .github-comments summary:focus-visible {
+  .anonymous-comment-composer summary:focus-visible {
     outline: 2px solid var(--link-color);
     outline-offset: 3px;
   }
 
   .github-comments {
+    min-width: 0;
+  }
+
+  .anonymous-comments {
     margin-top: 2rem;
     padding-top: 1.25rem;
     border-top: 1px solid var(--btn-border-color);
+  }
+
+  .anonymous-comment-composer {
+    margin-top: 0.75rem;
 
     summary {
+      width: fit-content;
+      padding: 0.625rem 0;
       color: var(--link-color);
       cursor: pointer;
       font-size: 0.875rem;
     }
 
-    &[open] summary {
-      margin-bottom: 1.5rem;
+    &[open] > summary {
+      margin-bottom: 0.5rem;
     }
   }
 }

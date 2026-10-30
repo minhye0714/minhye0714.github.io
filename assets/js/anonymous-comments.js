@@ -80,7 +80,7 @@
       if (list.childElementCount) return;
       const empty = document.createElement('p');
       empty.className = 'anonymous-comments-empty';
-      empty.textContent = '첫 댓글을 남겨 주세요.';
+      empty.textContent = '아직 익명 댓글이 없어요.';
       list.appendChild(empty);
     }
 
