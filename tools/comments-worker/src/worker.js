@@ -87,6 +87,9 @@ function publicComment(row) {
 
 async function listComments(url, env) {
   const post = postPath(url.searchParams.get('post'));
+  const oldest = commentOrder(url) === 'oldest';
+  const direction = oldest ? 'ASC' : 'DESC';
+  const comparison = oldest ? '>' : '<';
   const cursor = url.searchParams.get('before');
   let query;
   if (cursor) {
@@ -98,13 +101,13 @@ async function listComments(url, env) {
     }
     query = env.DB.prepare(
       `SELECT id, post, author, body, created_at FROM comments
-       WHERE post = ? AND (created_at, id) < (?, ?)
-       ORDER BY created_at DESC, id DESC LIMIT ?`
+       WHERE post = ? AND (created_at, id) ${comparison} (?, ?)
+       ORDER BY created_at ${direction}, id ${direction} LIMIT ?`
     ).bind(post, timestamp, id, PAGE_SIZE + 1);
   } else {
     query = env.DB.prepare(
       `SELECT id, post, author, body, created_at FROM comments
-       WHERE post = ? ORDER BY created_at DESC, id DESC LIMIT ?`
+       WHERE post = ? ORDER BY created_at ${direction}, id ${direction} LIMIT ?`
     ).bind(post, PAGE_SIZE + 1);
   }
   const { results } = await query.all();
@@ -114,6 +117,90 @@ async function listComments(url, env) {
     comments,
     next_cursor: results.length > PAGE_SIZE ? `${last.created_at}:${last.id}` : null
   };
+}
+
+function commentOrder(url) {
+  const order = url.searchParams.get('order') || 'newest';
+  if (!['oldest', 'newest'].includes(order)) throw new HttpError(400, '잘못된 정렬 요청이에요.');
+  return order;
+}
+
+function publicGitHubComment(comment, reply = false) {
+  return {
+    id: comment.id,
+    author: {
+      name: comment.author?.login || '삭제된 사용자',
+      avatar_url: comment.author?.avatarUrl || '',
+      url: comment.author?.url || ''
+    },
+    created_at: comment.createdAt,
+    url: comment.url,
+    hidden: Boolean(comment.deletedAt || comment.isMinimized),
+    body_html: comment.deletedAt || comment.isMinimized ? '' : comment.bodyHTML,
+    upvotes: comment.upvoteCount || 0,
+    reactions: Object.entries(comment.reactions || {}).map(([content, { count }]) => ({ content, count })),
+    ...(!reply && {
+      reply_count: comment.replyCount || 0,
+      replies: (comment.replies || []).map((item) => publicGitHubComment(item, true))
+    })
+  };
+}
+
+async function listGitHubComments(url, env) {
+  const post = postPath(url.searchParams.get('post'));
+  const oldest = commentOrder(url) === 'oldest';
+  const cursor = url.searchParams.get('before');
+  if (cursor && cursor.length > 512) throw new HttpError(400, '잘못된 페이지 요청이에요.');
+  // Only this configured public repository can be read; no caller-supplied URL or token.
+  if (!/^[\w.-]+\/[\w.-]+$/.test(env.GISCUS_REPO || '') || !env.GISCUS_CATEGORY) {
+    throw new HttpError(503, 'GitHub 댓글 서버 설정을 확인해 주세요.');
+  }
+  const upstream = new URL('https://giscus.app/api/discussions');
+  upstream.search = new URLSearchParams({
+    repo: env.GISCUS_REPO,
+    category: env.GISCUS_CATEGORY,
+    strict: env.GISCUS_STRICT === '0' ? 'false' : 'true',
+    // Match giscus's pathname mapping, including its trailing slash.
+    term: post.substring(1).replace(/\.\w+$/, ''),
+    [oldest ? 'first' : 'last']: String(PAGE_SIZE)
+  });
+  if (cursor) upstream.searchParams.set(oldest ? 'after' : 'before', cursor);
+  const cache = globalThis.caches?.default;
+  const cacheUrl = new URL('/_github-comments-cache', url.origin);
+  cacheUrl.search = upstream.search;
+  const cacheKey = new Request(cacheUrl);
+  if (cache && url.searchParams.get('fresh') !== '1') {
+    const cached = await cache.match(cacheKey).catch(() => null);
+    if (cached) return cached.json();
+  }
+  const response = await fetch(upstream, {
+    headers: { Accept: 'application/json' },
+    // Workers supports follow/manual, but not Fetch's redirect:error mode.
+    redirect: 'manual',
+    signal: AbortSignal.timeout(10000)
+  });
+  if (response.status === 404) return { comments: [], next_cursor: null, discussion_url: null };
+  if (!response.ok) {
+    throw new HttpError(response.status === 429 ? 429 : 503, 'GitHub 댓글을 불러오지 못했어요. 잠시 후 새로고침해 주세요.');
+  }
+  const { discussion } = await response.json();
+  if (!discussion || !Array.isArray(discussion.comments) || !discussion.pageInfo) {
+    throw new HttpError(503, 'GitHub 댓글 응답을 읽을 수 없어요.');
+  }
+  const { pageInfo } = discussion;
+  const comments = discussion.comments.map((comment) => publicGitHubComment(comment));
+  if (!oldest) comments.reverse();
+  const result = {
+    comments,
+    next_cursor: oldest
+      ? (pageInfo.hasNextPage ? pageInfo.endCursor : null)
+      : (pageInfo.hasPreviousPage ? pageInfo.startCursor : null),
+    discussion_url: discussion.url
+  };
+  if (cache) {
+    await cache.put(cacheKey, Response.json(result, { headers: { 'Cache-Control': 'public, max-age=30' } })).catch(() => {});
+  }
+  return result;
 }
 
 async function createComment(request, env) {
@@ -178,6 +265,9 @@ export default {
     }
     try {
       const url = new URL(request.url);
+      if (url.pathname === '/github-comments' && request.method === 'GET') {
+        return respond(200, await listGitHubComments(url, env));
+      }
       if (!env.DB) throw new HttpError(503, '댓글 저장소가 연결되지 않았어요.');
       if (url.pathname === '/health' && request.method === 'GET') {
         await env.DB.prepare('SELECT id FROM comments LIMIT 0').all();

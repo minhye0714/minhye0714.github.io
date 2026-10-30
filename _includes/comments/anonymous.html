@@ -1,12 +1,8 @@
 {% assign anonymous_endpoint = site.comments.anonymous.endpoint | default: '' | strip %}
 {% if anonymous_endpoint != empty %}
   <template id="anonymous-comments-template">
-    <section class="anonymous-comments" aria-label="익명 댓글"
+    <section class="anonymous-comments" aria-label="통합 댓글"
       data-endpoint="{{ anonymous_endpoint | escape }}" data-post="{{ page.url | escape }}">
-      <div class="anonymous-comment-list-heading">
-        <h3>익명 댓글</h3>
-        <button type="button" class="anonymous-comment-refresh">새로고침</button>
-      </div>
       <details class="anonymous-comment-composer">
         <summary>익명으로 댓글 남기기</summary>
         <p class="anonymous-comments-help" id="anonymous-comment-help">
@@ -30,9 +26,21 @@
         </form>
       </details>
       <p class="anonymous-comment-status" role="status" aria-live="polite"></p>
-      <div class="anonymous-comment-list" aria-live="polite"></div>
-      <button type="button" class="anonymous-comment-more" hidden>이전 댓글 더 보기</button>
+      <div class="comment-list-heading">
+        <h3 tabindex="-1">댓글 <span class="comment-count">0개</span></h3>
+        <div class="comment-list-actions">
+          <div class="comment-sort" role="group" aria-label="댓글 정렬">
+            <button type="button" data-order="oldest" aria-pressed="true">오래된 순</button>
+            <button type="button" data-order="newest" aria-pressed="false">새로운 순</button>
+          </div>
+          <button type="button" class="comment-refresh">새로고침</button>
+        </div>
+      </div>
+      <p class="comment-load-status" role="status" aria-live="polite"></p>
+      <div class="comment-list" aria-live="polite" aria-label="GitHub·익명 댓글 목록"></div>
+      <button type="button" class="comment-more" hidden>댓글 더 보기</button>
+      <button type="button" class="github-thread-open">GitHub 답글·반응</button>
     </section>
   </template>
-  <script defer src="{{ '/assets/js/anonymous-comments.js' | relative_url }}"></script>
+  <script defer src="{{ '/assets/js/comments.js' | relative_url }}"></script>
 {% endif %}

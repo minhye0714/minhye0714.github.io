@@ -5,7 +5,10 @@
   "compatibility_date": "2026-10-30",
   "workers_dev": true,
   "vars": {
-    "ALLOWED_ORIGINS": "https://minhye0714.github.io"
+    "ALLOWED_ORIGINS": "https://minhye0714.github.io",
+    "GISCUS_REPO": "minhye0714/minhye0714.github.io",
+    "GISCUS_CATEGORY": "Announcements",
+    "GISCUS_STRICT": "1"
   },
   "d1_databases": [
     {

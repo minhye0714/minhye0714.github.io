@@ -6,6 +6,10 @@
       new URL({{ '/assets/css/giscus-light.css' | relative_url | jsonify }}, window.location.origin).href,
       new URL({{ '/assets/css/giscus-dark.css' | relative_url | jsonify }}, window.location.origin).href
     );
+    const composerThemeMap = Theme.newThemeMap(
+      new URL({{ '/assets/css/giscus-composer-light.css' | relative_url | jsonify }}, window.location.origin).href,
+      new URL({{ '/assets/css/giscus-composer-dark.css' | relative_url | jsonify }}, window.location.origin).href
+    );
 
     let lang = {{ site.comments.giscus.lang | default: lang | jsonify }};
     if (lang.length > 2 && !lang.startsWith('zh')) {
@@ -51,6 +55,16 @@
     const githubContainer = document.createElement('div');
     githubContainer.className = 'github-comments';
     githubContainer.setAttribute('aria-label', 'GitHub 댓글');
+    const composerHeading = document.createElement('h3');
+    composerHeading.className = 'comment-composer-heading';
+    composerHeading.textContent = 'GitHub으로 댓글 남기기';
+    section.appendChild(composerHeading);
+    const returnButton = document.createElement('button');
+    returnButton.type = 'button';
+    returnButton.className = 'comment-thread-return';
+    returnButton.textContent = '← 전체 댓글로 돌아가기';
+    returnButton.hidden = true;
+    section.appendChild(returnButton);
     section.appendChild(githubContainer);
 
     const anonymousTemplate = document.getElementById('anonymous-comments-template');
@@ -62,6 +76,55 @@
     Object.entries(attributes).forEach(([key, value]) => script.setAttribute(key, value));
     githubContainer.appendChild(script);
 
+    let sharedReady = false;
+    let threadMode = false;
+    let lastMetadata;
+
+    function syncTheme() {
+      const map = sharedReady && !threadMode ? composerThemeMap : themeMap;
+      const theme = map[Theme.resolvedTheme];
+      const iframe = section.querySelector('.giscus-frame');
+      if (!iframe) return;
+      if (iframe.classList.contains('giscus-frame--loading')) {
+        const url = new URL(iframe.src);
+        if (url.searchParams.get('theme') !== theme) {
+          url.searchParams.set('theme', theme);
+          iframe.src = url.toString();
+        }
+      }
+      iframe.contentWindow.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
+    }
+
+    function setThreadMode(value) {
+      threadMode = value;
+      section.querySelector('.anonymous-comments').hidden = value;
+      composerHeading.textContent = value ? 'GitHub 답글·반응' : 'GitHub으로 댓글 남기기';
+      returnButton.hidden = !value;
+      syncTheme();
+    }
+
+    section.addEventListener('comments:ready', () => {
+      sharedReady = true;
+      syncTheme();
+    });
+    section.addEventListener('comments:github-thread', () => {
+      setThreadMode(true);
+      returnButton.focus();
+      composerHeading.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+    returnButton.addEventListener('click', () => {
+      setThreadMode(false);
+      section.dispatchEvent(new CustomEvent('comments:refresh'));
+      section.querySelector('.comment-list-heading h3').focus();
+    });
+    const observer = new MutationObserver(() => {
+      if (section.querySelector('.giscus-frame')) {
+        syncTheme();
+        observer.disconnect();
+      }
+    });
+    observer.observe(githubContainer, { childList: true, subtree: true });
+
     addEventListener('message', (event) => {
       const iframe = section.querySelector('.giscus-frame');
       if (event.origin === 'https://giscus.app' && event.source === iframe?.contentWindow) {
@@ -69,6 +132,12 @@
         const prefix = `https://github.com/${attributes['data-repo']}/discussions/`;
         if (typeof discussionUrl === 'string' && discussionUrl.startsWith(prefix)) {
           manageLink.href = discussionUrl;
+          const discussion = event.data.giscus.discussion;
+          const metadata = JSON.stringify([discussionUrl, discussion.totalCommentCount, discussion.totalReplyCount, discussion.reactionCount]);
+          if (metadata !== lastMetadata) {
+            lastMetadata = metadata;
+            section.dispatchEvent(new CustomEvent('comments:giscus-updated'));
+          }
         }
         return;
       }
@@ -77,16 +146,7 @@
         return;
       }
 
-      if (!iframe) return;
-
-      const theme = themeMap[Theme.resolvedTheme];
-      if (iframe.classList.contains('giscus-frame--loading')) {
-        const url = new URL(iframe.src);
-        url.searchParams.set('theme', theme);
-        iframe.src = url.toString();
-      }
-
-      iframe.contentWindow.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
+      syncTheme();
     });
   })();
 </script>

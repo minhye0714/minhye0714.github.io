@@ -20,7 +20,11 @@ export function setup(t) {
       };
     }
   };
-  const env = { DB, ALLOWED_ORIGINS: ORIGIN, COMMENT_RATE_LIMIT_SECRET: 'test-only-rate-limit-secret-with-32-characters' };
+  const env = {
+    DB, ALLOWED_ORIGINS: ORIGIN,
+    GISCUS_REPO: 'minhye0714/minhye0714.github.io', GISCUS_CATEGORY: 'Announcements', GISCUS_STRICT: '1',
+    COMMENT_RATE_LIMIT_SECRET: 'test-only-rate-limit-secret-with-32-characters'
+  };
   const request = (path, method = 'GET', data, options = {}) => {
     const headers = new Headers({ Origin: ORIGIN, 'CF-Connecting-IP': '192.0.2.1', ...options.headers });
     if (data !== undefined) headers.set('Content-Type', 'application/json');

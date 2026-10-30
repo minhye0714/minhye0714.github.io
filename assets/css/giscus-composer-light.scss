@@ -1,0 +1,11 @@
+---
+layout: null
+---
+
+@import url('{{ "/assets/css/giscus-light.css" | relative_url }}');
+
+// The parent page renders both providers in one list. Keep giscus's own composer.
+.gsc-timeline,
+.gsc-header {
+  display: none !important;
+}
