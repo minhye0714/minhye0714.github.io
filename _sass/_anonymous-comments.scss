@@ -384,7 +384,7 @@
   }
 
   .comment-list-heading {
-    margin-top: 1.75rem;
+    margin-top: 0;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--btn-border-color);
   }
@@ -461,7 +461,11 @@
   }
 
   .anonymous-comments {
-    margin-top: 0.75rem;
+    margin-top: 0;
+  }
+
+  .comment-composers {
+    margin-top: 1.75rem;
   }
 
   .comment-composer-heading {

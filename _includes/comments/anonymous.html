@@ -3,61 +3,65 @@
   <template id="anonymous-comments-template">
     <section class="anonymous-comments" aria-label="통합 댓글"
       data-endpoint="{{ anonymous_endpoint | escape }}" data-post="{{ page.url | escape }}">
-      <div class="anonymous-comment-composer">
-        <h3 class="comment-composer-heading">익명으로 댓글 남기기</h3>
-        <form class="anonymous-comment-form" method="post" aria-label="익명 댓글 작성">
-          <div class="anonymous-comment-tabs" role="tablist" aria-label="익명 댓글 편집">
-            <button type="button" id="anonymous-comment-write-tab" role="tab" aria-selected="true"
-              aria-controls="anonymous-comment-write" data-editor-tab="write">작성하기</button>
-            <button type="button" id="anonymous-comment-preview-tab" role="tab" aria-selected="false" tabindex="-1"
-              aria-controls="anonymous-comment-preview" data-editor-tab="preview">미리보기</button>
-          </div>
-          <div class="anonymous-comment-editor">
-            <div id="anonymous-comment-write" role="tabpanel" aria-labelledby="anonymous-comment-write-tab">
-              <label class="anonymous-comment-sr-only" for="anonymous-comment-body">댓글</label>
-              <textarea id="anonymous-comment-body" name="body" required maxlength="2000" rows="4"
-                placeholder="댓글 작성하기" aria-describedby="anonymous-comment-counter"></textarea>
+      <div class="comment-list-panel">
+        <div class="comment-list-heading">
+          <h3 tabindex="-1">댓글 <span class="comment-count">0개</span></h3>
+          <div class="comment-list-actions">
+            <div class="comment-sort" role="group" aria-label="댓글 정렬">
+              <button type="button" data-order="oldest" aria-pressed="true">오래된 순</button>
+              <button type="button" data-order="newest" aria-pressed="false">새로운 순</button>
             </div>
-            <div id="anonymous-comment-preview" class="anonymous-comment-preview" role="tabpanel"
-              aria-labelledby="anonymous-comment-preview-tab" tabindex="0" hidden></div>
-            <div class="anonymous-comment-editor-bottom">
-              <span class="anonymous-comment-counter" id="anonymous-comment-counter">0 / 2,000</span>
-            </div>
+            <button type="button" class="comment-refresh">새로고침</button>
           </div>
-          <div class="anonymous-comment-trap" aria-hidden="true">
-            <label for="anonymous-comment-website">Website</label>
-            <input id="anonymous-comment-website" name="website" tabindex="-1" autocomplete="off">
-          </div>
-          <div class="anonymous-comment-form-bottom">
-            <div class="anonymous-comment-identity">
-              <label class="anonymous-comment-sr-only" for="anonymous-comment-author">닉네임 (선택)</label>
-              <input id="anonymous-comment-author" name="author" maxlength="30" placeholder="닉네임 (선택)" autocomplete="off">
-              <label class="anonymous-comment-sr-only" for="anonymous-comment-pin">삭제 PIN (숫자 4자리)</label>
-              <input id="anonymous-comment-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}"
-                required minlength="4" maxlength="4" placeholder="삭제 PIN (4자리)" autocomplete="new-password">
-            </div>
-            <button type="submit" class="anonymous-comment-submit" disabled>댓글 등록</button>
-          </div>
-        </form>
-      </div>
-      <p class="anonymous-comment-status" role="status" aria-live="polite"></p>
-      <div class="comment-list-heading">
-        <h3 tabindex="-1">댓글 <span class="comment-count">0개</span></h3>
-        <div class="comment-list-actions">
-          <div class="comment-sort" role="group" aria-label="댓글 정렬">
-            <button type="button" data-order="oldest" aria-pressed="true">오래된 순</button>
-            <button type="button" data-order="newest" aria-pressed="false">새로운 순</button>
-          </div>
-          <button type="button" class="comment-refresh">새로고침</button>
         </div>
+        <p class="comment-load-status" role="status" aria-live="polite"></p>
+        <p class="github-comment-login-help" hidden>
+          내 GitHub 댓글을 삭제하려면 <button type="button" class="github-thread-open">GitHub 로그인</button>을 해 주세요.
+        </p>
+        <div class="comment-list" aria-live="polite" aria-label="GitHub·익명 댓글 목록"></div>
+        <button type="button" class="comment-more" hidden>댓글 더 보기</button>
+        <button type="button" class="github-thread-open">GitHub 답글·반응</button>
       </div>
-      <p class="comment-load-status" role="status" aria-live="polite"></p>
-      <p class="github-comment-login-help" hidden>
-        내 GitHub 댓글을 삭제하려면 <button type="button" class="github-thread-open">GitHub 로그인</button>을 해 주세요.
-      </p>
-      <div class="comment-list" aria-live="polite" aria-label="GitHub·익명 댓글 목록"></div>
-      <button type="button" class="comment-more" hidden>댓글 더 보기</button>
-      <button type="button" class="github-thread-open">GitHub 답글·반응</button>
+      <div class="comment-composers">
+        <div class="anonymous-comment-composer">
+          <h3 class="comment-composer-heading">익명으로 댓글 남기기</h3>
+          <form class="anonymous-comment-form" method="post" aria-label="익명 댓글 작성">
+            <div class="anonymous-comment-tabs" role="tablist" aria-label="익명 댓글 편집">
+              <button type="button" id="anonymous-comment-write-tab" role="tab" aria-selected="true"
+                aria-controls="anonymous-comment-write" data-editor-tab="write">작성하기</button>
+              <button type="button" id="anonymous-comment-preview-tab" role="tab" aria-selected="false" tabindex="-1"
+                aria-controls="anonymous-comment-preview" data-editor-tab="preview">미리보기</button>
+            </div>
+            <div class="anonymous-comment-editor">
+              <div id="anonymous-comment-write" role="tabpanel" aria-labelledby="anonymous-comment-write-tab">
+                <label class="anonymous-comment-sr-only" for="anonymous-comment-body">댓글</label>
+                <textarea id="anonymous-comment-body" name="body" required maxlength="2000" rows="4"
+                  placeholder="댓글 작성하기" aria-describedby="anonymous-comment-counter"></textarea>
+              </div>
+              <div id="anonymous-comment-preview" class="anonymous-comment-preview" role="tabpanel"
+                aria-labelledby="anonymous-comment-preview-tab" tabindex="0" hidden></div>
+              <div class="anonymous-comment-editor-bottom">
+                <span class="anonymous-comment-counter" id="anonymous-comment-counter">0 / 2,000</span>
+              </div>
+            </div>
+            <div class="anonymous-comment-trap" aria-hidden="true">
+              <label for="anonymous-comment-website">Website</label>
+              <input id="anonymous-comment-website" name="website" tabindex="-1" autocomplete="off">
+            </div>
+            <div class="anonymous-comment-form-bottom">
+              <div class="anonymous-comment-identity">
+                <label class="anonymous-comment-sr-only" for="anonymous-comment-author">닉네임 (선택)</label>
+                <input id="anonymous-comment-author" name="author" maxlength="30" placeholder="닉네임 (선택)" autocomplete="off">
+                <label class="anonymous-comment-sr-only" for="anonymous-comment-pin">삭제 PIN (숫자 4자리)</label>
+                <input id="anonymous-comment-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}"
+                  required minlength="4" maxlength="4" placeholder="삭제 PIN (4자리)" autocomplete="new-password">
+              </div>
+              <button type="submit" class="anonymous-comment-submit" disabled>댓글 등록</button>
+            </div>
+          </form>
+        </div>
+        <p class="anonymous-comment-status" role="status" aria-live="polite"></p>
+      </div>
     </section>
   </template>
   <script defer src="{{ '/assets/js/comments.js' | relative_url }}"></script>

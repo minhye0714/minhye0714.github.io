@@ -10,6 +10,11 @@
       new URL({{ '/assets/css/giscus-composer-light.css' | relative_url | jsonify }}, window.location.origin).href,
       new URL({{ '/assets/css/giscus-composer-dark.css' | relative_url | jsonify }}, window.location.origin).href
     );
+    const reactionsThemeMap = Theme.newThemeMap(
+      new URL({{ '/assets/css/giscus-reactions-light.css' | relative_url | jsonify }}, window.location.origin).href,
+      new URL({{ '/assets/css/giscus-reactions-dark.css' | relative_url | jsonify }}, window.location.origin).href
+    );
+    const reactionsEnabled = {{ site.comments.giscus.reactions_enabled | default: '1' | jsonify }} !== '0';
 
     let lang = {{ site.comments.giscus.lang | default: lang | jsonify }};
     if (lang.length > 2 && !lang.startsWith('zh')) {
@@ -24,7 +29,7 @@
       'data-category-id': {{ site.comments.giscus.category_id | jsonify }},
       'data-mapping': {{ site.comments.giscus.mapping | default: 'pathname' | jsonify }},
       'data-strict': {{ site.comments.giscus.strict | default: '0' | jsonify }},
-      'data-reactions-enabled': {{ site.comments.giscus.reactions_enabled | default: '1' | jsonify }},
+      'data-reactions-enabled': '0',
       'data-emit-metadata': '1',
       'data-theme': themeMap[Theme.resolvedTheme],
       'data-input-position': {{ site.comments.giscus.input_position | default: 'bottom' | jsonify }},
@@ -46,26 +51,30 @@
     title.textContent = '댓글';
     section.appendChild(title);
 
+    const reactionsContainer = document.createElement('div');
+    reactionsContainer.className = 'post-reactions';
+    reactionsContainer.setAttribute('aria-label', '글 반응');
+    const reactionsAnchor = document.getElementById('post-reactions-anchor');
+    if (reactionsEnabled) {
+      if (reactionsAnchor) reactionsAnchor.replaceWith(reactionsContainer);
+      else section.before(reactionsContainer);
+    } else reactionsAnchor?.remove();
+
+    const anonymousTemplate = document.getElementById('anonymous-comments-template');
+    if (anonymousTemplate) section.appendChild(anonymousTemplate.content.cloneNode(true));
+    const composerSlot = section.querySelector('.comment-composers') || section;
     const githubContainer = document.createElement('div');
     githubContainer.className = 'github-comments';
     githubContainer.setAttribute('aria-label', 'GitHub 댓글');
     const composerHeading = document.createElement('h3');
-    /* The visible title is inside the iframe, below its post reactions. */
-    composerHeading.className = 'comment-composer-heading anonymous-comment-sr-only';
+    composerHeading.className = 'comment-composer-heading';
     composerHeading.textContent = 'GitHub으로 댓글 남기기';
-    section.appendChild(composerHeading);
     const returnButton = document.createElement('button');
     returnButton.type = 'button';
     returnButton.className = 'comment-thread-return';
     returnButton.textContent = '← 전체 댓글로 돌아가기';
     returnButton.hidden = true;
-    section.appendChild(returnButton);
-    section.appendChild(githubContainer);
-
-    const anonymousTemplate = document.getElementById('anonymous-comments-template');
-    if (anonymousTemplate) {
-      section.appendChild(anonymousTemplate.content.cloneNode(true));
-    }
+    composerSlot.prepend(composerHeading, returnButton, githubContainer);
 
     const script = document.createElement('script');
     Object.entries(attributes).forEach(([key, value]) => script.setAttribute(key, value));
@@ -74,6 +83,8 @@
     let sharedReady = false;
     let threadMode = false;
     let lastMetadata;
+    let reactionsFrame;
+    let reactionsIdentity;
 
     function updateViewer(login) {
       const viewer = typeof login === 'string' && login.length <= 100 ? login : '';
@@ -95,11 +106,40 @@
         }
       }
       iframe.contentWindow.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
+      syncReactions(iframe);
+    }
+
+    function syncReactions(iframe) {
+      if (!reactionsEnabled) return;
+      const url = new URL(iframe.src);
+      if (url.origin !== 'https://giscus.app') return;
+      url.searchParams.set('reactionsEnabled', '1');
+      url.searchParams.set('emitMetadata', '1');
+      url.searchParams.delete('theme');
+      const identity = url.href;
+      const theme = reactionsThemeMap[Theme.resolvedTheme];
+      if (!reactionsFrame) {
+        reactionsFrame = document.createElement('iframe');
+        reactionsFrame.className = 'post-reactions-frame';
+        reactionsFrame.title = '글 반응';
+        reactionsFrame.setAttribute('scrolling', 'no');
+        reactionsFrame.loading = 'lazy';
+        reactionsContainer.appendChild(reactionsFrame);
+      }
+      /* Reuse the existing giscus discussion and encrypted login session. */
+      if (reactionsIdentity !== identity) {
+        reactionsIdentity = identity;
+        url.searchParams.set('theme', theme);
+        reactionsFrame.src = url.href;
+      } else {
+        reactionsFrame.contentWindow.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
+      }
     }
 
     function setThreadMode(value) {
       threadMode = value;
-      section.querySelector('.anonymous-comments').hidden = value;
+      section.querySelectorAll('.comment-list-panel, .anonymous-comment-composer, .anonymous-comment-status')
+        .forEach((element) => { element.hidden = value; });
       composerHeading.textContent = value ? 'GitHub 답글·반응' : 'GitHub으로 댓글 남기기';
       returnButton.hidden = !value;
       syncTheme();
@@ -122,18 +162,24 @@
     const observer = new MutationObserver(() => {
       if (section.querySelector('.giscus-frame')) {
         syncTheme();
-        observer.disconnect();
       }
     });
-    observer.observe(githubContainer, { childList: true, subtree: true });
+    observer.observe(githubContainer, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
     addEventListener('message', (event) => {
       const iframe = section.querySelector('.giscus-frame');
-      if (event.origin === 'https://giscus.app' && event.source === iframe?.contentWindow) {
+      const fromEditor = Boolean(iframe) && event.source === iframe.contentWindow;
+      const fromReactions = Boolean(reactionsFrame) && event.source === reactionsFrame.contentWindow;
+      if (event.origin === 'https://giscus.app' && (fromEditor || fromReactions)) {
         const giscus = event.data?.giscus;
+        if (fromReactions && Number.isFinite(giscus?.resizeHeight) && giscus.resizeHeight > 0) {
+          reactionsFrame.style.height = `${Math.ceil(giscus.resizeHeight)}px`;
+          /* The official loader otherwise applies every widget resize to its editor. */
+          if (!giscus.signOut && !giscus.error) event.stopImmediatePropagation();
+        }
         if (giscus?.signOut || /Bad credentials|Invalid state value|State has expired/.test(giscus?.error || '')) {
           updateViewer('');
-        } else if (giscus && Object.hasOwn(giscus, 'viewer')) {
+        } else if (fromEditor && giscus && Object.hasOwn(giscus, 'viewer')) {
           updateViewer(giscus.viewer?.login);
         }
         const discussionUrl = event.data?.giscus?.discussion?.url;
@@ -154,6 +200,6 @@
       }
 
       syncTheme();
-    });
+    }, { capture: true });
   })();
 </script>

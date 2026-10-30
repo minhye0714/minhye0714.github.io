@@ -1,17 +1,27 @@
-<!-- Only render real adjacent posts; a single-post blog needs no empty cards. -->
-{% if page.previous.url or page.next.url %}
-  <nav class="post-navigation d-flex justify-content-between" aria-label="Post Navigation">
-    {% if page.previous.url %}
-      <a href="{{ page.previous.url | relative_url }}" class="btn btn-outline-primary post-navigation-previous"
-        aria-label="{{ site.data.locales[include.lang].post.button.previous }}">
-        <p>{{ page.previous.title | escape }}</p>
-      </a>
-    {% endif %}
-    {% if page.next.url %}
-      <a href="{{ page.next.url | relative_url }}" class="btn btn-outline-primary post-navigation-next"
-        aria-label="{{ site.data.locales[include.lang].post.button.next }}">
-        <p>{{ page.next.title | escape }}</p>
-      </a>
-    {% endif %}
-  </nav>
-{% endif %}
+<!-- Keep both navigation slots visible, including unavailable adjacent posts. -->
+<nav class="post-navigation d-flex justify-content-between" aria-label="Post Navigation">
+  {% assign previous = site.data.locales[include.lang].post.button.previous %}
+  {% assign next = site.data.locales[include.lang].post.button.next %}
+
+  {% if page.previous.url %}
+    <a href="{{ page.previous.url | relative_url }}" class="btn btn-outline-primary post-navigation-previous"
+      aria-label="{{ previous }}">
+      <p>{{ page.previous.title | escape }}</p>
+    </a>
+  {% else %}
+    <div class="btn btn-outline-primary disabled" aria-label="{{ previous }}" aria-disabled="true">
+      <p>-</p>
+    </div>
+  {% endif %}
+
+  {% if page.next.url %}
+    <a href="{{ page.next.url | relative_url }}" class="btn btn-outline-primary post-navigation-next"
+      aria-label="{{ next }}">
+      <p>{{ page.next.title | escape }}</p>
+    </a>
+  {% else %}
+    <div class="btn btn-outline-primary disabled" aria-label="{{ next }}" aria-disabled="true">
+      <p>-</p>
+    </div>
+  {% endif %}
+</nav>

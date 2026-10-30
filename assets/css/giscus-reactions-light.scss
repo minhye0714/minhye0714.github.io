@@ -1,0 +1,9 @@
+---
+layout: null
+---
+
+@import url('{{ "/assets/css/giscus-light.css" | relative_url }}');
+
+.gsc-comments {
+  display: none !important;
+}

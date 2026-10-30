@@ -98,7 +98,7 @@
     function setBusy(value) {
       busy = value;
       list.setAttribute('aria-busy', String(value));
-      root.querySelectorAll('button').forEach((button) => { button.disabled = value; });
+      root.querySelectorAll('button:not(.comment-thread-return)').forEach((button) => { button.disabled = value; });
       if (!value && refreshQueued) {
         refreshQueued = false;
         queueRefresh();
@@ -409,7 +409,7 @@
       count.textContent = `${comments.size}개${hasMore() ? '+' : ''}`;
       root.querySelector('.github-comment-login-help').hidden = Boolean(githubViewer()) ||
         !Array.from(comments.values()).some((item) => item.provider === 'github');
-      root.querySelectorAll('button:not(.github-thread-open)').forEach((button) => { button.disabled = busy; });
+      root.querySelectorAll('button:not(.github-thread-open):not(.comment-thread-return)').forEach((button) => { button.disabled = busy; });
     }
 
     async function fill(source, fresh) {

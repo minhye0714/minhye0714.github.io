@@ -4,6 +4,7 @@ panel_includes:
   - toc
 tail_includes:
   - related-posts
+  - post-nav
 script_includes:
   - comment
 ---
@@ -122,8 +123,7 @@ script_includes:
     {{ content }}
   </div>
 
-  {% include post-nav.html lang=lang %}
-  <div id="post-comments-anchor"></div>
+  <div id="post-reactions-anchor"></div>
 
   <div class="post-tail-wrapper text-muted">
     <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
@@ -160,7 +160,7 @@ script_includes:
     <div
       class="
         post-tail-bottom
-        d-flex justify-content-end align-items-center mt-4 pb-2
+        d-flex justify-content-start align-items-center mt-4 pb-2
       "
     >
       {% include post-sharing.html lang=lang %}
@@ -168,4 +168,5 @@ script_includes:
     <!-- .post-tail-bottom -->
   </div>
   <!-- div.post-tail-wrapper -->
+  <div id="post-comments-anchor"></div>
 </article>

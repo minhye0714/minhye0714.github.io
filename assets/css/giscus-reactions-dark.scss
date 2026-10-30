@@ -1,0 +1,9 @@
+---
+layout: null
+---
+
+@import url('{{ "/assets/css/giscus-dark.css" | relative_url }}');
+
+.gsc-comments {
+  display: none !important;
+}
