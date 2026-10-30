@@ -29,7 +29,8 @@ test('one giscus iframe switches between the composer and native interactions wh
   const { window } = dom;
   window.Theme = { newThemeMap: (light, dark) => ({ light, dark }), resolvedTheme: 'light', eventId: 'theme:test' };
   window.HTMLElement.prototype.scrollIntoView = () => {};
-  window.eval(script);
+  // Chirpy compresses inline JavaScript to one line in the rendered HTML.
+  window.eval(script.replace(/\s*\r?\n\s*/g, ' '));
   const section = window.document.querySelector('.post-comments');
   assert.equal(section.previousElementSibling.className, 'post-navigation');
   assert.equal(section.nextElementSibling.className, 'post-tail-wrapper');
