@@ -1,0 +1,35 @@
+{% assign anonymous_endpoint = site.comments.anonymous.endpoint | default: '' | strip %}
+{% if anonymous_endpoint != empty %}
+  <template id="anonymous-comments-template">
+    <section class="anonymous-comments" aria-label="익명 댓글"
+      data-endpoint="{{ anonymous_endpoint | escape }}" data-post="{{ page.url | escape }}">
+      <p class="anonymous-comments-help" id="anonymous-comment-help">
+        로그인 없이 남길 수 있어요. 내 댓글은 작성한 브라우저에서 삭제할 수 있으며,
+        브라우저 저장 데이터를 지우면 삭제 권한도 사라져요.
+      </p>
+      <form class="anonymous-comment-form" method="post" aria-describedby="anonymous-comment-help">
+        <label for="anonymous-comment-author">닉네임 <span>(선택)</span></label>
+        <input id="anonymous-comment-author" name="author" maxlength="30" placeholder="익명" autocomplete="off">
+        <label for="anonymous-comment-body">댓글</label>
+        <textarea id="anonymous-comment-body" name="body" required maxlength="2000" rows="5"
+          placeholder="생각이나 질문을 남겨 주세요."></textarea>
+        <div class="anonymous-comment-trap" aria-hidden="true">
+          <label for="anonymous-comment-website">Website</label>
+          <input id="anonymous-comment-website" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="anonymous-comment-form-bottom">
+          <span class="anonymous-comment-counter">0 / 2,000</span>
+          <button type="submit" class="anonymous-comment-submit" disabled>댓글 남기기</button>
+        </div>
+      </form>
+      <p class="anonymous-comment-status" role="status" aria-live="polite"></p>
+      <div class="anonymous-comment-list-heading">
+        <h3>익명 댓글</h3>
+        <button type="button" class="anonymous-comment-refresh">새로고침</button>
+      </div>
+      <div class="anonymous-comment-list" aria-live="polite"></div>
+      <button type="button" class="anonymous-comment-more" hidden>이전 댓글 더 보기</button>
+    </section>
+  </template>
+  <script defer src="{{ '/assets/js/anonymous-comments.js' | relative_url }}"></script>
+{% endif %}

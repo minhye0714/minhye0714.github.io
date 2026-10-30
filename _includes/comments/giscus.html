@@ -1,0 +1,94 @@
+<!-- Keep the embedded comments in sync with the blog's color mode. -->
+{% include comments/anonymous.html %}
+<script>
+  (function () {
+    const themeMap = Theme.newThemeMap(
+      new URL({{ '/assets/css/giscus-light.css' | relative_url | jsonify }}, window.location.origin).href,
+      new URL({{ '/assets/css/giscus-dark.css' | relative_url | jsonify }}, window.location.origin).href
+    );
+
+    let lang = {{ site.comments.giscus.lang | default: lang | jsonify }};
+    if (lang.length > 2 && !lang.startsWith('zh')) {
+      lang = lang.slice(0, 2);
+    }
+
+    const attributes = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': {{ site.comments.giscus.repo | jsonify }},
+      'data-repo-id': {{ site.comments.giscus.repo_id | jsonify }},
+      'data-category': {{ site.comments.giscus.category | jsonify }},
+      'data-category-id': {{ site.comments.giscus.category_id | jsonify }},
+      'data-mapping': {{ site.comments.giscus.mapping | default: 'pathname' | jsonify }},
+      'data-strict': {{ site.comments.giscus.strict | default: '0' | jsonify }},
+      'data-reactions-enabled': {{ site.comments.giscus.reactions_enabled | default: '1' | jsonify }},
+      'data-emit-metadata': '1',
+      'data-theme': themeMap[Theme.resolvedTheme],
+      'data-input-position': {{ site.comments.giscus.input_position | default: 'bottom' | jsonify }},
+      'data-lang': lang,
+      'data-loading': 'lazy',
+      crossorigin: 'anonymous',
+      async: ''
+    };
+
+    const section = document.createElement('section');
+    section.className = 'post-comments';
+    section.setAttribute('aria-label', '댓글');
+    document.querySelector('#tail-wrapper footer').insertAdjacentElement('beforebegin', section);
+
+    const heading = document.createElement('div');
+    heading.className = 'post-comments-heading';
+    const title = document.createElement('h2');
+    title.textContent = '댓글';
+    const manageLink = document.createElement('a');
+    manageLink.className = 'comment-manage-link';
+    manageLink.textContent = 'GitHub에서 수정·삭제 ↗';
+    manageLink.href = `https://github.com/${attributes['data-repo']}/discussions`;
+    manageLink.target = '_blank';
+    manageLink.rel = 'noopener noreferrer';
+    heading.append(title, manageLink);
+    section.appendChild(heading);
+
+    let githubContainer = section;
+    const anonymousTemplate = document.getElementById('anonymous-comments-template');
+    if (anonymousTemplate) {
+      section.appendChild(anonymousTemplate.content.cloneNode(true));
+      githubContainer = document.createElement('details');
+      githubContainer.className = 'github-comments';
+      const summary = document.createElement('summary');
+      summary.textContent = 'GitHub 댓글 보기·작성';
+      githubContainer.appendChild(summary);
+      section.appendChild(githubContainer);
+    }
+
+    const script = document.createElement('script');
+    Object.entries(attributes).forEach(([key, value]) => script.setAttribute(key, value));
+    githubContainer.appendChild(script);
+
+    addEventListener('message', (event) => {
+      const iframe = section.querySelector('.giscus-frame');
+      if (event.origin === 'https://giscus.app' && event.source === iframe?.contentWindow) {
+        const discussionUrl = event.data?.giscus?.discussion?.url;
+        const prefix = `https://github.com/${attributes['data-repo']}/discussions/`;
+        if (typeof discussionUrl === 'string' && discussionUrl.startsWith(prefix)) {
+          manageLink.href = discussionUrl;
+        }
+        return;
+      }
+
+      if (event.source !== window || !event.data || event.data.id !== Theme.eventId) {
+        return;
+      }
+
+      if (!iframe) return;
+
+      const theme = themeMap[Theme.resolvedTheme];
+      if (iframe.classList.contains('giscus-frame--loading')) {
+        const url = new URL(iframe.src);
+        url.searchParams.set('theme', theme);
+        iframe.src = url.toString();
+      }
+
+      iframe.contentWindow.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
+    });
+  })();
+</script>

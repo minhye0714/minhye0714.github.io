@@ -1,0 +1,19 @@
+---
+layout: null
+---
+
+@use 'giscus' with (
+  $base-theme: 'dark_dimmed',
+  $color-scheme: dark,
+  $canvas: #1b1b1e,
+  $surface: #222225,
+  $surface-hover: #2c2c31,
+  $text: #d2d2d7,
+  $muted: #9b9ba5,
+  $border: #34343b,
+  $accent: #8ab4f8,
+  $accent-soft: #283246,
+  $button: #e4e4e8,
+  $button-text: #1b1b1e,
+  $button-hover: #ffffff
+);

@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "optimization-log-comments",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://minhye0714.github.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "optimization-log-comments",
+      "database_id": "acb1b8a4-258a-4b62-a25f-33bd98e98a1f",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}
