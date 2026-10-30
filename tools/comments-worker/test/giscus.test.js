@@ -22,7 +22,7 @@ const script = source.slice(source.indexOf('<script>') + 8, source.lastIndexOf('
   });
 
 test('one giscus iframe switches between the composer and native interactions while hiding the shared list', async (t) => {
-  const dom = new JSDOM('<!doctype html><div id="tail-wrapper"><footer></footer></div><template id="anonymous-comments-template"><section class="anonymous-comments"><div class="comment-list-heading"><h3 tabindex="-1">comments</h3></div><button class="comment-refresh">refresh</button></section></template>', {
+  const dom = new JSDOM('<!doctype html><article><div class="content">post</div><nav class="post-navigation"></nav><div id="post-comments-anchor"></div><div class="post-tail-wrapper"></div></article><div id="tail-wrapper"><footer></footer></div><template id="anonymous-comments-template"><section class="anonymous-comments"><div class="comment-list-heading"><h3 tabindex="-1">comments</h3></div><button class="comment-refresh">refresh</button></section></template>', {
     url: 'https://minhye0714.github.io/posts/sad-ai-syndrome/', runScripts: 'outside-only'
   });
   t.after(() => dom.window.close());
@@ -31,6 +31,11 @@ test('one giscus iframe switches between the composer and native interactions wh
   window.HTMLElement.prototype.scrollIntoView = () => {};
   window.eval(script);
   const section = window.document.querySelector('.post-comments');
+  assert.equal(section.previousElementSibling.className, 'post-navigation');
+  assert.equal(section.nextElementSibling.className, 'post-tail-wrapper');
+  assert.equal(section.closest('article')?.querySelector('.content')?.textContent, 'post');
+  assert.equal(section.querySelector('.comment-manage-link'), null);
+  assert.ok(section.querySelector('.comment-composer-heading').classList.contains('anonymous-comment-sr-only'));
   const shared = section.querySelector('.anonymous-comments');
   const iframe = window.document.createElement('iframe');
   iframe.className = 'giscus-frame';
@@ -77,7 +82,7 @@ test('one giscus iframe switches between the composer and native interactions wh
   data.giscus.discussion.totalCommentCount = 2;
   send('https://giscus.app', iframe.contentWindow);
   assert.equal(changes, 2);
-  assert.equal(section.querySelector('.comment-manage-link').href, data.giscus.discussion.url);
+  assert.equal(section.querySelector('.comment-manage-link'), null);
   window.dispatchEvent(new window.MessageEvent('message', {
     origin: 'https://giscus.app', source: iframe.contentWindow, data: { giscus: { signOut: true } }
   }));

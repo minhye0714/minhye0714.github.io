@@ -55,24 +55,34 @@ main {
   font-family: var(--font-family-sans);
 }
 
-.gsc-main {
-  gap: 1.75rem;
+main .gsc-main {
+  gap: 1.5rem;
 }
 
-.gsc-reactions {
-  align-items: flex-start;
+main .gsc-reactions {
+  align-items: center;
   gap: 0.5rem;
+  text-align: center;
 }
 
-.gsc-reactions-count {
+main .gsc-reactions-count {
   color: var(--color-fg-muted);
   font-size: 0.8125rem;
   font-weight: 400;
-  text-align: start;
+  text-align: center;
 }
 
-.gsc-comments {
-  gap: 1.25rem;
+main .gsc-comments {
+  gap: 0.75rem;
+
+  &::before {
+    content: 'GitHub으로 댓글 남기기';
+    display: block;
+    color: var(--color-fg-default);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
 }
 
 // Outrank the iframe's bundled styles regardless of stylesheet load order.

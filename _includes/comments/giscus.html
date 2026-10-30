@@ -37,26 +37,21 @@
     const section = document.createElement('section');
     section.className = 'post-comments';
     section.setAttribute('aria-label', '댓글');
-    document.querySelector('#tail-wrapper footer').insertAdjacentElement('beforebegin', section);
+    const anchor = document.getElementById('post-comments-anchor');
+    if (anchor) anchor.replaceWith(section);
+    else document.querySelector('#tail-wrapper footer').insertAdjacentElement('beforebegin', section);
 
-    const heading = document.createElement('div');
-    heading.className = 'post-comments-heading';
     const title = document.createElement('h2');
+    title.className = 'anonymous-comment-sr-only';
     title.textContent = '댓글';
-    const manageLink = document.createElement('a');
-    manageLink.className = 'comment-manage-link';
-    manageLink.textContent = 'GitHub에서 수정·삭제 ↗';
-    manageLink.href = `https://github.com/${attributes['data-repo']}/discussions`;
-    manageLink.target = '_blank';
-    manageLink.rel = 'noopener noreferrer';
-    heading.append(title, manageLink);
-    section.appendChild(heading);
+    section.appendChild(title);
 
     const githubContainer = document.createElement('div');
     githubContainer.className = 'github-comments';
     githubContainer.setAttribute('aria-label', 'GitHub 댓글');
     const composerHeading = document.createElement('h3');
-    composerHeading.className = 'comment-composer-heading';
+    // The visible title is inside the iframe, below its post reactions.
+    composerHeading.className = 'comment-composer-heading anonymous-comment-sr-only';
     composerHeading.textContent = 'GitHub으로 댓글 남기기';
     section.appendChild(composerHeading);
     const returnButton = document.createElement('button');
@@ -117,7 +112,7 @@
     section.addEventListener('comments:github-thread', () => {
       setThreadMode(true);
       returnButton.focus();
-      composerHeading.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      githubContainer.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
     returnButton.addEventListener('click', () => {
       setThreadMode(false);
@@ -144,7 +139,6 @@
         const discussionUrl = event.data?.giscus?.discussion?.url;
         const prefix = `https://github.com/${attributes['data-repo']}/discussions/`;
         if (typeof discussionUrl === 'string' && discussionUrl.startsWith(prefix)) {
-          manageLink.href = discussionUrl;
           const discussion = event.data.giscus.discussion;
           const metadata = JSON.stringify([discussionUrl, discussion.totalCommentCount, discussion.totalReplyCount, discussion.reactionCount]);
           if (metadata !== lastMetadata) {

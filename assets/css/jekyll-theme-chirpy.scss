@@ -89,43 +89,45 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Give comments a quiet boundary below the post navigation. */
+/* Restrict article selection without affecting the comment editors. */
+[data-copy-protected],
+[data-copy-protected] * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+[data-copy-protected] img,
+[data-copy-protected] a {
+  -webkit-user-drag: none;
+}
+
+[data-copy-protected] .code-header > button {
+  display: none;
+}
+
+/* Place adjacent posts and reactions directly after the article body. */
+article > .post-navigation {
+  margin: 2rem 0 1.5rem;
+
+  .btn:only-child {
+    flex: 1;
+    width: 100%;
+    border-radius: 0.625rem;
+    inset-inline: auto;
+  }
+}
+
+article > .post-tail-wrapper {
+  margin-top: 1.5rem;
+}
+
 .post-comments {
-  margin-block: 2.5rem 1.5rem;
-  padding-top: 1.75rem;
-  border-top: 1px solid var(--btn-border-color);
+  margin-block: 1.5rem 2rem;
 
   .giscus-frame {
     display: block;
     width: 100%;
-  }
-
-  .post-comments-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-
-    h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-  }
-
-  .comment-manage-link {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--btn-border-color);
-    border-radius: 0.625rem;
-    font-size: 0.8rem;
-    text-decoration: none;
-
-    &:focus-visible {
-      outline: 2px solid var(--link-color);
-      outline-offset: 3px;
-    }
   }
 }
 

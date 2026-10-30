@@ -1,5 +1,9 @@
 <script defer src="{{ '/assets/js/sidebar-size.js' | relative_url }}"></script>
 
+{% if page.layout == 'post' %}
+  <script defer src="{{ '/assets/js/content-protection.js' | relative_url }}"></script>
+{% endif %}
+
 {% if page.layout == 'post' and site.pageviews.provider == 'worker' %}
   {% assign pageviews_endpoint = site.pageviews.endpoint | default: site.comments.anonymous.endpoint | default: '' | strip %}
   {% if pageviews_endpoint != empty %}
