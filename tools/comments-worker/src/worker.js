@@ -1,5 +1,6 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DELETE_TOKEN = /^[0-9a-f]{64}$/i;
+const PIN = /^[0-9]{4}$/;
 const PAGE_SIZE = 50;
 const encoder = new TextEncoder();
 
@@ -69,25 +70,125 @@ function sameHash(left, right) {
   return difference === 0;
 }
 
-async function rateLimit(request, env) {
+async function secretHash(value, env) {
+  if (!env.COMMENT_RATE_LIMIT_SECRET || env.COMMENT_RATE_LIMIT_SECRET.length < 32) {
+    throw new HttpError(503, '댓글 서버 설정을 확인해 주세요.');
+  }
+  const key = await crypto.subtle.importKey('raw', encoder.encode(env.COMMENT_RATE_LIMIT_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const hash = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function pinHash(id, pin, env) {
+  // A per-comment HMAC prevents testing the 10,000 PINs from a DB dump alone.
+  // Never persist the PIN, return this hash, or reuse it as a deletion token.
+  return secretHash(`comment-delete-pin:v1:${id}:${pin}`, env);
+}
+
+async function pinAttemptLimit(id, env) {
+  // Share a small allowance across IPs so changing networks cannot brute-force a PIN.
+  const minute = Math.floor(Date.now() / 60000);
+  const windowStart = minute - minute % 15;
+  const clientKey = await digest(`${env.COMMENT_RATE_LIMIT_SECRET}:pin-attempt:${id}`);
+  const bucket = await env.DB.prepare(
+    `INSERT INTO rate_limits (client_key, minute, count) VALUES (?, ?, 1)
+     ON CONFLICT (client_key, minute) DO UPDATE SET count = count + 1
+     WHERE count < 5 RETURNING count`
+  ).bind(clientKey, windowStart).first();
+  if (!bucket) throw new HttpError(429, 'PIN 입력 시도가 많아요. 최대 15분 후 다시 시도해 주세요.');
+}
+
+async function rateLimit(request, env, scope = '', maximum = 10) {
   if (!env.COMMENT_RATE_LIMIT_SECRET || env.COMMENT_RATE_LIMIT_SECRET.length < 32) {
     throw new HttpError(503, '댓글 서버 설정을 확인해 주세요.');
   }
   const minute = Math.floor(Date.now() / 60000);
   const ip = request.headers.get('cf-connecting-ip');
   // Local development has no Cloudflare IP header. Production headers are set by Cloudflare.
-  const clientKey = await digest(`${env.COMMENT_RATE_LIMIT_SECRET}:${ip || 'local'}:${Math.floor(minute / 1440)}`);
+  const clientKey = await digest(`${env.COMMENT_RATE_LIMIT_SECRET}:${scope ? `${scope}:` : ''}${ip || 'local'}:${Math.floor(minute / 1440)}`);
   await env.DB.prepare('DELETE FROM rate_limits WHERE minute < ?').bind(minute - 60).run();
   const bucket = await env.DB.prepare(
     `INSERT INTO rate_limits (client_key, minute, count) VALUES (?, ?, 1)
      ON CONFLICT (client_key, minute) DO UPDATE SET count = count + 1
-     WHERE count < 10 RETURNING count`
-  ).bind(clientKey, minute).first();
+     WHERE count < ? RETURNING count`
+  ).bind(clientKey, minute, maximum).first();
   if (!bucket) throw new HttpError(429, '요청이 많아요. 잠시 후 다시 시도해 주세요.');
 }
 
+function pageviewPath(value) {
+  return postPath(new URL(postPath(value), 'https://blog.invalid').pathname);
+}
+
+async function pageviews(post, env) {
+  const row = await env.DB.prepare('SELECT views FROM pageviews WHERE post = ?').bind(post).first();
+  return { post, views: row?.views || 0 };
+}
+
+async function recordPageview(request, env) {
+  const data = await jsonBody(request);
+  const post = pageviewPath(data.post);
+  if (!UUID.test(data.id)) throw new HttpError(400, '올바르지 않은 조회 요청이에요.');
+  const existing = await env.DB.prepare('SELECT post FROM pageview_events WHERE id = ?').bind(data.id).first();
+  if (existing) {
+    if (existing.post !== post) throw new HttpError(409, '이미 사용된 조회 번호예요.');
+    return pageviews(post, env);
+  }
+  // Browsing articles has its own allowance, so it does not consume comment limits.
+  await rateLimit(request, env, 'pageviews', 60);
+  await env.DB.prepare('DELETE FROM pageview_events WHERE created_at < ?').bind(Date.now() - 86400000).run();
+  const results = await env.DB.batch([
+    env.DB.prepare('INSERT INTO pageviews (post, views) VALUES (?, 0) ON CONFLICT DO NOTHING').bind(post),
+    env.DB.prepare('INSERT INTO pageview_events (id, post, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').bind(data.id, post, Date.now()),
+    // batch is a transaction. changes() is the preceding visit insert's 0 or 1,
+    // including when concurrent retries have the same ID.
+    env.DB.prepare('UPDATE pageviews SET views = views + changes() WHERE post = ? RETURNING views').bind(post)
+  ]);
+  return { post, views: results[2].results[0].views };
+}
+
+function visitorDays() {
+  // Use the server's clock and Korean calendar day, independent of visitor clocks.
+  const koreanTime = Date.now() + 9 * 60 * 60 * 1000;
+  return {
+    today: new Date(koreanTime).toISOString().slice(0, 10),
+    yesterday: new Date(koreanTime - 86400000).toISOString().slice(0, 10)
+  };
+}
+
+async function visitors(env, days = visitorDays()) {
+  const { results } = await env.DB.prepare(
+    "SELECT day, visitors FROM visitor_stats WHERE day IN (?, ?, 'total')"
+  ).bind(days.today, days.yesterday).all();
+  const counts = Object.fromEntries(results.map((row) => [row.day, row.visitors]));
+  return { date: days.today, timezone: 'Asia/Seoul', today: counts[days.today] || 0,
+    yesterday: counts[days.yesterday] || 0, total: counts.total || 0 };
+}
+
+async function recordVisitor(request, env) {
+  const data = await jsonBody(request);
+  if (typeof data.id !== 'string' || !UUID.test(data.id)) throw new HttpError(400, '올바르지 않은 방문 요청이에요.');
+  const days = visitorDays();
+  const hash = await secretHash(`site-visitor:v1:${days.today}:${data.id}`, env);
+  const existing = await env.DB.prepare(
+    'SELECT 1 AS found FROM visitor_events WHERE day = ? AND visitor_hash = ?'
+  ).bind(days.today, hash).first();
+  if (existing) return visitors(env, days);
+  await rateLimit(request, env, 'visitors', 60);
+  await env.DB.prepare('DELETE FROM visitor_events WHERE day < ?').bind(days.yesterday).run();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO visitor_stats (day, visitors) VALUES (?, 0) ON CONFLICT DO NOTHING').bind(days.today),
+    env.DB.prepare("INSERT INTO visitor_stats (day, visitors) VALUES ('total', 0) ON CONFLICT DO NOTHING"),
+    env.DB.prepare('INSERT INTO visitor_events (day, visitor_hash) VALUES (?, ?) ON CONFLICT DO NOTHING').bind(days.today, hash),
+    // One atomic visit insert adds either 0 or 1 to both daily and total counts.
+    env.DB.prepare("UPDATE visitor_stats SET visitors = visitors + changes() WHERE day IN (?, 'total')").bind(days.today)
+  ]);
+  return visitors(env, days);
+}
+
 function publicComment(row) {
-  return { id: row.id, post: row.post, author: row.author, body: row.body, created_at: row.created_at };
+  return { id: row.id, post: row.post, author: row.author, body: row.body, created_at: row.created_at,
+    delete_method: row.delete_pin_hash ? 'pin' : 'browser' };
 }
 
 async function listComments(url, env) {
@@ -105,13 +206,13 @@ async function listComments(url, env) {
       throw new HttpError(400, '잘못된 페이지 요청이에요.');
     }
     query = env.DB.prepare(
-      `SELECT id, post, author, body, created_at FROM comments
+      `SELECT id, post, author, body, created_at, delete_pin_hash FROM comments
        WHERE post = ? AND (created_at, id) ${comparison} (?, ?)
        ORDER BY created_at ${direction}, id ${direction} LIMIT ?`
     ).bind(post, timestamp, id, PAGE_SIZE + 1);
   } else {
     query = env.DB.prepare(
-      `SELECT id, post, author, body, created_at FROM comments
+      `SELECT id, post, author, body, created_at, delete_pin_hash FROM comments
        WHERE post = ? ORDER BY created_at ${direction}, id ${direction} LIMIT ?`
     ).bind(post, PAGE_SIZE + 1);
   }
@@ -214,35 +315,56 @@ async function createComment(request, env) {
   const post = postPath(data.post);
   const author = typeof data.author === 'string' ? data.author.trim() || '익명' : '익명';
   const body = typeof data.body === 'string' ? data.body.trim() : '';
-  if (data.website || !UUID.test(data.id) || !DELETE_TOKEN.test(data.delete_token)) {
+  const hasPin = data.pin !== undefined;
+  if (hasPin && (typeof data.pin !== 'string' || !PIN.test(data.pin))) {
+    throw new HttpError(400, '삭제 PIN은 숫자 4자리로 입력해 주세요.');
+  }
+  // Keep requests from the previous browser-key client working during rollout.
+  if (data.website || !UUID.test(data.id) || (!hasPin && !DELETE_TOKEN.test(data.delete_token))) {
     throw new HttpError(400, '올바르지 않은 댓글 요청이에요.');
   }
   if (author.length > 30 || body.length < 1 || body.length > 2000) {
     throw new HttpError(400, '닉네임은 30자, 댓글은 1~2,000자로 입력해 주세요.');
   }
-  const deleteHash = await digest(data.delete_token);
+  const deleteHash = hasPin ? '' : await digest(data.delete_token);
+  const deletePinHash = hasPin ? await pinHash(data.id, data.pin, env) : null;
   const existing = await env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(data.id).first();
   if (existing) {
-    if (sameHash(existing.delete_hash, deleteHash) && existing.post === post && existing.author === author && existing.body === body) {
+    if (hasPin && existing.delete_pin_hash) {
+      // Retrying a public comment's POST must not become an unlimited PIN oracle.
+      await rateLimit(request, env);
+      await pinAttemptLimit(data.id, env);
+    }
+    const ownsComment = hasPin ? sameHash(existing.delete_pin_hash, deletePinHash)
+      : !existing.delete_pin_hash && sameHash(existing.delete_hash, deleteHash);
+    if (ownsComment && existing.post === post && existing.author === author && existing.body === body) {
       return publicComment(existing);
     }
     throw new HttpError(409, '댓글을 다시 등록해 주세요.');
   }
   await rateLimit(request, env);
-  const row = { id: data.id, post, author, body, created_at: Date.now() };
+  const row = { id: data.id, post, author, body, created_at: Date.now(), delete_pin_hash: deletePinHash };
   await env.DB.prepare(
-    'INSERT INTO comments (id, post, author, body, created_at, delete_hash) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(row.id, post, author, body, row.created_at, deleteHash).run();
-  return row;
+    'INSERT INTO comments (id, post, author, body, created_at, delete_hash, delete_pin_hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(row.id, post, author, body, row.created_at, deleteHash, deletePinHash).run();
+  return publicComment(row);
 }
 
 async function deleteComment(request, env, id) {
   if (!UUID.test(id)) throw new HttpError(400, '올바른 댓글 번호가 아니에요.');
   const data = await jsonBody(request);
-  if (!DELETE_TOKEN.test(data.delete_token)) throw new HttpError(403, '이 댓글을 삭제할 수 없어요.');
   await rateLimit(request, env);
-  const row = await env.DB.prepare('SELECT delete_hash FROM comments WHERE id = ?').bind(id).first();
+  const row = await env.DB.prepare('SELECT delete_hash, delete_pin_hash FROM comments WHERE id = ?').bind(id).first();
   if (!row) throw new HttpError(404, '이미 삭제된 댓글이에요.');
+  if (row.delete_pin_hash) {
+    if (typeof data.pin !== 'string' || !PIN.test(data.pin)) throw new HttpError(400, '삭제 PIN은 숫자 4자리로 입력해 주세요.');
+    await pinAttemptLimit(id, env);
+    const hash = await pinHash(id, data.pin, env);
+    if (!sameHash(row.delete_pin_hash, hash)) throw new HttpError(403, 'PIN이 일치하지 않아요.');
+    await env.DB.prepare('DELETE FROM comments WHERE id = ? AND delete_pin_hash = ?').bind(id, hash).run();
+    return;
+  }
+  if (!DELETE_TOKEN.test(data.delete_token)) throw new HttpError(403, '이 댓글은 작성한 브라우저에서 삭제할 수 있어요.');
   const hash = await digest(data.delete_token);
   if (!sameHash(row.delete_hash, hash)) throw new HttpError(403, '이 브라우저에서 작성한 댓글만 삭제할 수 있어요.');
   await env.DB.prepare('DELETE FROM comments WHERE id = ? AND delete_hash = ?').bind(id, hash).run();
@@ -382,7 +504,19 @@ export default {
       if (url.pathname === '/comments' && request.method === 'GET') {
         return respond(200, await listComments(url, env));
       }
+      if (url.pathname === '/pageviews' && request.method === 'GET') {
+        return respond(200, await pageviews(pageviewPath(url.searchParams.get('post')), env));
+      }
+      if (url.pathname === '/visitors' && request.method === 'GET') {
+        return respond(200, await visitors(env));
+      }
       if (!origin) throw new HttpError(403, '사이트 주소가 필요해요.');
+      if (url.pathname === '/visitors' && request.method === 'POST') {
+        return respond(200, await recordVisitor(request, env));
+      }
+      if (url.pathname === '/pageviews' && request.method === 'POST') {
+        return respond(200, await recordPageview(request, env));
+      }
       const githubMatch = url.pathname.match(/^\/github-comments\/([^/]+)$/);
       if (githubMatch && request.method === 'DELETE') {
         return respond(200, await deleteGitHubComment(request, env, githubMatch[1]));

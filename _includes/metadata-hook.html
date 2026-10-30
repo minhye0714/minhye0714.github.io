@@ -1,0 +1,9 @@
+<script defer src="{{ '/assets/js/sidebar-size.js' | relative_url }}"></script>
+
+{% if page.layout == 'post' and site.pageviews.provider == 'worker' %}
+  {% assign pageviews_endpoint = site.pageviews.endpoint | default: site.comments.anonymous.endpoint | default: '' | strip %}
+  {% if pageviews_endpoint != empty %}
+    <script defer src="{{ '/assets/js/pageviews.js' | relative_url }}" data-pageviews
+      data-endpoint="{{ pageviews_endpoint | escape }}" data-post="{{ page.url | escape }}"></script>
+  {% endif %}
+{% endif %}

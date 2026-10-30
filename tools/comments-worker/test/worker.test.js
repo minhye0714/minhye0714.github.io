@@ -83,7 +83,7 @@ test('pagination handles equal timestamps without leaking or skipping comments',
   for (let index = 0; index < 55; index++) {
     const input = draft();
     ids.add(input.id);
-    sqlite.prepare('INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, '익명', String(index), 1761700000000, 'not-a-public-key');
+    sqlite.prepare('INSERT INTO comments (id, post, author, body, created_at, delete_hash) VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, '익명', String(index), 1761700000000, 'not-a-public-key');
   }
   const first = await (await request(`/comments?post=${POST}`)).json();
   assert.equal(first.comments.length, 50);
@@ -110,7 +110,7 @@ test('anonymous pagination supports oldest first without skipping equal timestam
   for (let index = 0; index < 55; index++) {
     const input = draft();
     ids.push(input.id);
-    sqlite.prepare('INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, '익명', String(index), 1761700000000, 'private-hash');
+    sqlite.prepare('INSERT INTO comments (id, post, author, body, created_at, delete_hash) VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, '익명', String(index), 1761700000000, 'private-hash');
   }
   const first = await (await request(`/comments?post=${POST}&order=oldest`)).json();
   const second = await (await request(`/comments?post=${POST}&order=oldest&before=${encodeURIComponent(first.next_cursor)}`)).json();

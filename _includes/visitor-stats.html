@@ -1,0 +1,15 @@
+{% if site.visitor_stats.enabled %}
+  {% assign visitor_endpoint = site.visitor_stats.endpoint | default: site.pageviews.endpoint | default: site.comments.anonymous.endpoint | default: '' | strip %}
+  {% if visitor_endpoint != empty %}
+    <section id="access-visitors" aria-label="방문자 통계" data-visitors data-endpoint="{{ visitor_endpoint | escape }}">
+      <h2 class="panel-heading">방문자 통계</h2>
+      <dl class="visitor-stats-counts" aria-live="polite">
+        <div><dt>오늘</dt><dd><span data-visitor-today>—</span><small>명</small></dd></div>
+        <div><dt>어제</dt><dd><span data-visitor-yesterday>—</span><small>명</small></dd></div>
+        <div class="visitor-stats-total"><dt>누적 방문</dt><dd><span data-visitor-total>—</span><small>회</small></dd></div>
+      </dl>
+      <p class="visitor-stats-status" role="status"></p>
+    </section>
+    <script defer src="{{ '/assets/js/visitor-stats.js' | relative_url }}"></script>
+  {% endif %}
+{% endif %}

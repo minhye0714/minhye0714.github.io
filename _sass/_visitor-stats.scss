@@ -1,0 +1,63 @@
+#toc-wrapper #access-visitors {
+  margin-top: 1.75rem;
+  padding-left: 1rem;
+}
+
+.post-visitors-without-toc {
+  margin-top: 2rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--main-border-color);
+}
+
+#access-visitors {
+  .visitor-stats-counts {
+    margin: 0.875rem 0 0;
+
+    > div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding-block: 0.3rem;
+    }
+
+    dt {
+      font-size: 0.85rem;
+      font-weight: 400;
+    }
+
+    dd {
+      display: flex;
+      align-items: baseline;
+      gap: 0.3rem;
+      margin: 0;
+      color: var(--heading-color);
+      font-size: 1rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    small {
+      color: var(--text-muted-color);
+      font-size: 0.75rem;
+      font-weight: 400;
+    }
+
+    .visitor-stats-total {
+      margin-top: 0.4rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--main-border-color);
+    }
+  }
+
+  .visitor-stats-status {
+    margin: 0.75rem 0 0;
+    color: var(--text-muted-color);
+    font-size: 0.7rem;
+    line-height: 1.7;
+  }
+
+  .visitor-stats-status:empty {
+    display: none;
+  }
+}

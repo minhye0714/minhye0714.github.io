@@ -2,6 +2,8 @@
 
 <aside aria-label="Sidebar" id="sidebar" class="d-flex flex-column align-items-end">
   <header class="profile-wrapper">
+    <a class="site-title d-block" href="{{ '/' | relative_url }}">{{ site.title | escape }}</a>
+
     <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle">
       {%- if site.avatar != empty and site.avatar -%}
         {%- capture avatar_url -%}
@@ -11,7 +13,7 @@
       {%- endif -%}
     </a>
 
-    <a class="site-title d-block" href="{{ '/' | relative_url }}">{{ site.social.name | escape }}</a>
+    <p class="site-author">{{ site.social.name | escape }}</p>
   </header>
   <!-- .profile-wrapper -->
 

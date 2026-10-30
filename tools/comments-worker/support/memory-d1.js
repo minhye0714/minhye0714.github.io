@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import worker from '../src/worker.js';
 
 export const ORIGIN = 'https://minhye0714.github.io';
@@ -7,7 +7,10 @@ export const POST = '/posts/sad-ai-syndrome/';
 
 export function setup(t) {
   const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec(readFileSync(new URL('../migrations/0001_comments.sql', import.meta.url), 'utf8'));
+  const migrations = new URL('../migrations/', import.meta.url);
+  for (const name of readdirSync(migrations).filter((name) => name.endsWith('.sql')).sort()) {
+    sqlite.exec(readFileSync(new URL(name, migrations), 'utf8'));
+  }
   t.after(() => sqlite.close());
   const DB = {
     prepare(sql) {
@@ -16,8 +19,20 @@ export function setup(t) {
         bind(...args) { values = args; return this; },
         async first() { return sqlite.prepare(sql).get(...values) || null; },
         async all() { return { results: sqlite.prepare(sql).all(...values) }; },
+        batchRun() { return { results: sqlite.prepare(sql).all(...values) }; },
         async run() { return { meta: sqlite.prepare(sql).run(...values) }; }
       };
+    },
+    async batch(statements) {
+      sqlite.exec('BEGIN');
+      try {
+        const results = statements.map((statement) => statement.batchRun());
+        sqlite.exec('COMMIT');
+        return results;
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
     }
   };
   const env = {

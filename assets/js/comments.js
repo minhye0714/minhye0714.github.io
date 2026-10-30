@@ -56,8 +56,12 @@
     const storageKey = `blog-comment-delete-keys:${endpoint}`;
     const form = root.querySelector('form');
     const author = form.elements.author;
+    const pin = form.elements.pin;
     const body = form.elements.body;
     const counter = root.querySelector('.anonymous-comment-counter');
+    const editorTabs = [...form.querySelectorAll('[data-editor-tab]')];
+    const writePanel = form.querySelector('#anonymous-comment-write');
+    const previewPanel = form.querySelector('#anonymous-comment-preview');
     const status = root.querySelector('.anonymous-comment-status');
     const loadStatus = root.querySelector('.comment-load-status');
     const list = root.querySelector('.comment-list');
@@ -107,14 +111,6 @@
         return value && !Array.isArray(value) && typeof value === 'object' ? value : {};
       } catch {
         return {};
-      }
-    }
-
-    function remember(id, token) {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({ ...keys(), [id]: token }));
-      } catch {
-        throw new Error('댓글 삭제 권한을 저장할 수 없어요. 브라우저 저장소를 허용한 뒤 다시 시도해 주세요.');
       }
     }
 
@@ -216,6 +212,96 @@
       return button;
     }
 
+    async function removeAnonymousComment(comment, credentials) {
+      try {
+        await api(`/comments/${encodeURIComponent(comment.id)}`, 'DELETE', credentials);
+      } catch (error) {
+        if (error.status !== 404) throw error;
+      }
+      comments.delete(key(comment));
+      const source = sources.find((item) => item.provider === 'anonymous');
+      source.buffer = source.buffer.filter((item) => item.id !== comment.id);
+      forget(comment.id);
+      render();
+      message('댓글을 삭제했어요.');
+    }
+
+    function pinDeletion(comment, button) {
+      const deleteForm = document.createElement('form');
+      deleteForm.id = `comment-pin-delete-${comment.id}`;
+      deleteForm.className = 'anonymous-comment-delete-form';
+      deleteForm.hidden = true;
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.id = `${deleteForm.id}-pin`;
+      input.name = 'pin';
+      input.type = 'password';
+      input.inputMode = 'numeric';
+      input.pattern = '[0-9]{4}';
+      input.minLength = input.maxLength = 4;
+      input.required = true;
+      input.autocomplete = 'off';
+      input.placeholder = '숫자 4자리';
+      label.htmlFor = input.id;
+      label.textContent = '삭제 PIN';
+      const submit = document.createElement('button');
+      submit.type = 'submit';
+      submit.textContent = '삭제하기';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = '취소';
+      const errorMessage = document.createElement('p');
+      errorMessage.id = `${deleteForm.id}-error`;
+      errorMessage.className = 'anonymous-comment-delete-error';
+      errorMessage.setAttribute('role', 'alert');
+      input.setAttribute('aria-describedby', errorMessage.id);
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-controls', deleteForm.id);
+      function close() {
+        deleteForm.hidden = true;
+        input.value = '';
+        errorMessage.textContent = '';
+        button.setAttribute('aria-expanded', 'false');
+        button.focus();
+      }
+      button.addEventListener('click', () => {
+        if (busy) return;
+        if (!deleteForm.hidden) { close(); return; }
+        deleteForm.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+        input.focus();
+      });
+      cancel.addEventListener('click', close);
+      deleteForm.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !busy) { event.preventDefault(); close(); }
+      });
+      deleteForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (busy) return;
+        if (!/^[0-9]{4}$/.test(input.value)) {
+          errorMessage.textContent = '숫자 4자리를 입력해 주세요.';
+          input.focus();
+          return;
+        }
+        setBusy(true);
+        input.disabled = true;
+        errorMessage.textContent = '';
+        try {
+          await removeAnonymousComment(comment, { pin: input.value });
+          root.querySelector('.comment-list-heading h3').focus();
+        } catch (error) {
+          errorMessage.textContent = error.message;
+          input.value = '';
+        } finally {
+          input.disabled = false;
+          setBusy(false);
+          if (deleteForm.isConnected) input.focus();
+        }
+      });
+      deleteForm.append(label, input, submit, cancel, errorMessage);
+      return deleteForm;
+    }
+
     function card(comment, reply = false) {
       const github = comment.provider === 'github';
       const article = document.createElement('article');
@@ -247,23 +333,19 @@
         header.prepend(avatar);
       }
       const token = !github && keys()[comment.id];
-      if (token) {
+      let deleteForm;
+      if (!github && (comment.delete_method === 'pin' || token)) {
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'anonymous-comment-delete';
         remove.textContent = '삭제';
-        remove.setAttribute('aria-label', '내 댓글 삭제');
-        remove.addEventListener('click', async () => {
+        remove.setAttribute('aria-label', comment.delete_method === 'pin' ? 'PIN으로 익명 댓글 삭제' : '내 댓글 삭제');
+        if (comment.delete_method === 'pin') deleteForm = pinDeletion(comment, remove);
+        else remove.addEventListener('click', async () => {
           if (busy || !window.confirm('이 댓글을 삭제할까요?')) return;
           setBusy(true);
           try {
-            await api(`/comments/${encodeURIComponent(comment.id)}`, 'DELETE', { delete_token: token });
-            comments.delete(key(comment));
-            const source = sources.find((item) => item.provider === 'anonymous');
-            source.buffer = source.buffer.filter((item) => item.id !== comment.id);
-            forget(comment.id);
-            render();
-            message('댓글을 삭제했어요.');
+            await removeAnonymousComment(comment, { delete_token: token });
           } catch (error) {
             message(error.message, true);
           } finally { setBusy(false); }
@@ -279,6 +361,7 @@
         content.textContent = comment.body;
       }
       article.append(header, content);
+      if (deleteForm) article.appendChild(deleteForm);
       if (github) {
         const footer = document.createElement('div');
         footer.className = 'comment-actions';
@@ -391,6 +474,30 @@
       }, 250);
     }
 
+    function selectEditorTab(name) {
+      const preview = name === 'preview';
+      writePanel.hidden = preview;
+      previewPanel.hidden = !preview;
+      if (preview) previewPanel.textContent = body.value.trim() || '미리보기할 댓글이 없습니다.';
+      editorTabs.forEach((tab) => {
+        const active = tab.dataset.editorTab === name;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+      });
+    }
+
+    editorTabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => { if (!busy) selectEditorTab(tab.dataset.editorTab); });
+      tab.addEventListener('keydown', (event) => {
+        if (busy || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? editorTabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + editorTabs.length) % editorTabs.length;
+        selectEditorTab(editorTabs[next].dataset.editorTab);
+        editorTabs[next].focus();
+      });
+    });
+    body.addEventListener('invalid', () => selectEditorTab('write'));
     body.addEventListener('input', () => {
       counter.textContent = `${body.value.length.toLocaleString('ko-KR')} / 2,000`;
     });
@@ -399,29 +506,36 @@
       if (busy) return;
       const text = body.value.trim();
       const nickname = author.value.trim() || '익명';
+      const deletionPin = pin.value;
       if (!text) {
         message('댓글 내용을 입력해 주세요.', true);
+        selectEditorTab('write');
         body.focus();
+        return;
+      }
+      if (!/^[0-9]{4}$/.test(deletionPin)) {
+        message('삭제 PIN은 숫자 4자리로 입력해 주세요.', true);
+        pin.focus();
         return;
       }
       setBusy(true);
       message('댓글을 등록하는 중이에요.');
       try {
-        if (!pending || pending.body !== text || pending.author !== nickname) {
-          const bytes = crypto.getRandomValues(new Uint8Array(32));
+        if (!pending || pending.body !== text || pending.author !== nickname || pending.pin !== deletionPin) {
           pending = {
             id: crypto.randomUUID(),
-            delete_token: Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(''),
+            pin: deletionPin,
             post, author: nickname, body: text, website: form.elements.website.value
           };
         }
-        // Save before posting so a lost network response does not lose deletion rights.
-        remember(pending.id, pending.delete_token);
+        // Retain this ID and PIN only in memory for an idempotent network retry.
         const result = await api('/comments', 'POST', pending);
         const comment = { ...result.comment, provider: 'anonymous' };
         comments.set(key(comment), comment);
         render();
         if (body.value.trim() === text) body.value = '';
+        if (pin.value === deletionPin) pin.value = '';
+        selectEditorTab('write');
         counter.textContent = `${body.value.length.toLocaleString('ko-KR')} / 2,000`;
         pending = null;
         message('댓글을 등록했어요.');

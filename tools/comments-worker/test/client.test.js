@@ -40,40 +40,174 @@ function page(t, request, savedKeys, github = () => Response.json({ comments: []
   return window;
 }
 
-test('a visitor can post anonymously, reload, and delete their own comment; a different browser cannot', async (t) => {
+test('editor tabs preview plain text safely, preserve fields and support keyboard navigation before posting', async (t) => {
+  const { request, sqlite } = setup(t);
+  const window = page(t, request);
+  const document = window.document;
+  await until(() => document.querySelector('.comments-empty') && idle(document));
+  const form = document.querySelector('.anonymous-comment-form');
+  const body = form.elements.body;
+  const draftText = '<img src=x onerror=alert(1)>\npreview draft';
+  body.value = draftText;
+  form.elements.author.value = 'preview author';
+  form.elements.pin.value = '0042';
+  const write = form.querySelector('[data-editor-tab="write"]');
+  const preview = form.querySelector('[data-editor-tab="preview"]');
+  const panel = form.querySelector('#anonymous-comment-preview');
+  preview.click();
+  assert.equal(panel.hidden, false);
+  assert.equal(panel.textContent, draftText);
+  assert.equal(panel.querySelector('img'), null);
+  assert.equal(form.querySelector('#anonymous-comment-write').hidden, true);
+  assert.equal(preview.getAttribute('aria-selected'), 'true');
+  assert.equal(form.elements.pin.value, '0042');
+  preview.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  assert.equal(panel.hidden, true);
+  assert.equal(document.activeElement, write);
+  assert.equal(body.value, draftText);
+  write.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+  assert.equal(panel.hidden, false);
+  assert.equal(document.activeElement, preview);
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => document.querySelector('.anonymous-comment') && idle(document));
+  assert.equal(sqlite.prepare('SELECT body FROM comments').get().body, draftText);
+  assert.equal(panel.hidden, true);
+  assert.equal(body.value, '');
+  assert.equal(form.elements.pin.value, '');
+});
+
+test('submitting an empty preview returns to the visible writer and focuses the required textarea', async (t) => {
+  const { request, sqlite } = setup(t);
+  const window = page(t, request);
+  const document = window.document;
+  await until(() => document.querySelector('.comments-empty') && idle(document));
+  const form = document.querySelector('.anonymous-comment-form');
+  form.querySelector('[data-editor-tab="preview"]').click();
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(form.querySelector('#anonymous-comment-write').hidden, false);
+  assert.equal(document.activeElement, form.elements.body);
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM comments').get().n, 0);
+});
+
+test('a visitor posts with a masked PIN and deletes from another browser without storing credentials', async (t) => {
   const { request, sqlite } = setup(t);
   const window = page(t, request);
   const document = window.document;
   await until(() => document.querySelector('.comments-empty'));
   const body = document.querySelector('textarea');
+  document.querySelector('#anonymous-comment-pin').value = '0042';
   body.value = '<img src=x onerror=alert(1)>\n익명 댓글 테스트';
   document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await until(() => document.querySelector('.anonymous-comment-delete') && !document.querySelector('.anonymous-comment-delete').disabled);
   assert.equal(document.querySelector('.anonymous-comment-body').textContent, '<img src=x onerror=alert(1)>\n익명 댓글 테스트');
   assert.equal(document.querySelector('.anonymous-comment-body img'), null);
   assert.equal(document.querySelector('.anonymous-comment strong').textContent, '익명');
+  assert.equal(document.querySelector('#anonymous-comment-pin').type, 'password');
+  assert.equal(document.querySelector('#anonymous-comment-pin').value, '');
+  assert.equal(window.localStorage.length, 0);
 
-  const savedKeys = window.localStorage.getItem('blog-comment-delete-keys:https://comments.example.test');
   const anotherBrowser = page(t, request);
-  await until(() => anotherBrowser.document.querySelector('.anonymous-comment'));
-  assert.equal(anotherBrowser.document.querySelector('.anonymous-comment-delete'), null);
-
-  const reloaded = page(t, request, savedKeys);
-  await until(() => reloaded.document.querySelector('.anonymous-comment-delete') && !reloaded.document.querySelector('.anonymous-comment-delete').disabled);
-  reloaded.document.querySelector('.anonymous-comment-delete').click();
-  await until(() => reloaded.document.querySelector('.comments-empty'));
+  const other = anotherBrowser.document;
+  await until(() => other.querySelector('.anonymous-comment-delete') && idle(other));
+  other.querySelector('.anonymous-comment-delete').click();
+  const deleteForm = other.querySelector('.anonymous-comment-delete-form');
+  assert.equal(deleteForm.hidden, false);
+  assert.equal(deleteForm.elements.pin.type, 'password');
+  assert.equal(other.activeElement, deleteForm.elements.pin);
+  deleteForm.elements.pin.value = '9999';
+  deleteForm.dispatchEvent(new anotherBrowser.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => deleteForm.querySelector('[role="alert"]').textContent.includes('일치하지'));
+  assert.equal(other.querySelectorAll('.anonymous-comment').length, 1);
+  assert.equal(deleteForm.elements.pin.value, '');
+  deleteForm.elements.pin.value = '0042';
+  deleteForm.dispatchEvent(new anotherBrowser.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => other.querySelector('.comments-empty'));
   assert.equal(sqlite.prepare('SELECT count(*) AS count FROM comments').get().count, 0);
 });
 
-test('if browser storage is blocked, posting stops before a comment can lose its deletion key', async (t) => {
+test('PIN comments can be posted and deleted even when browser storage is blocked', async (t) => {
   const { request, sqlite } = setup(t);
   const window = page(t, request);
   await until(() => window.document.querySelector('.comments-empty'));
   Object.defineProperty(window, 'localStorage', { get() { throw new Error('storage blocked'); } });
-  window.document.querySelector('textarea').value = '삭제 권한을 저장할 수 없는 댓글';
+  window.document.querySelector('textarea').value = '저장소가 차단된 브라우저의 댓글';
+  window.document.querySelector('#anonymous-comment-pin').value = '1234';
   window.document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-  await until(() => window.document.querySelector('.anonymous-comment-status').classList.contains('is-error'));
+  await until(() => window.document.querySelector('.anonymous-comment-delete') && idle(window.document));
+  window.document.querySelector('.anonymous-comment-delete').click();
+  const deleteForm = window.document.querySelector('.anonymous-comment-delete-form');
+  deleteForm.elements.pin.value = '1234';
+  deleteForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => window.document.querySelector('.comments-empty'));
   assert.equal(sqlite.prepare('SELECT count(*) AS count FROM comments').get().count, 0);
+});
+
+test('invalid PINs cannot submit; canceling or failing a deletion keeps the comment and draft', async (t) => {
+  const { request, sqlite } = setup(t);
+  let deletes = 0;
+  const window = page(t, (...args) => {
+    if (args[1] === 'DELETE') { deletes++; return Response.json({ error: '잠시 후 다시 시도해 주세요.' }, { status: 503 }); }
+    return request(...args);
+  });
+  const document = window.document;
+  await until(() => document.querySelector('.comments-empty') && idle(document));
+  const form = document.querySelector('.anonymous-comment-form');
+  form.elements.body.value = 'PIN comment';
+  form.elements.pin.value = '12a4';
+  const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  submit();
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM comments').get().n, 0);
+  assert.equal(document.activeElement, form.elements.pin);
+  form.elements.pin.value = '1234';
+  submit();
+  await until(() => document.querySelector('.anonymous-comment-delete') && idle(document));
+  form.elements.body.value = 'unsent draft';
+  const button = document.querySelector('.anonymous-comment-delete');
+  const deleteForm = document.querySelector('.anonymous-comment-delete-form');
+  button.click();
+  deleteForm.elements.pin.value = '1234';
+  deleteForm.querySelector('[type="button"]').click();
+  assert.equal(deleteForm.hidden, true);
+  assert.equal(deleteForm.elements.pin.value, '');
+  assert.equal(deletes, 0);
+  button.click();
+  deleteForm.elements.pin.value = '1234';
+  deleteForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => deleteForm.querySelector('[role="alert"]').textContent.includes('잠시 후'));
+  assert.equal(deletes, 1);
+  assert.equal(document.querySelectorAll('.anonymous-comment').length, 1);
+  assert.equal(form.elements.body.value, 'unsent draft');
+  assert.equal(deleteForm.elements.pin.value, '');
+});
+
+test('retrying after a lost PIN comment response reuses the ID without duplicating the comment', async (t) => {
+  const { request, sqlite } = setup(t);
+  let lostResponse = true;
+  const posted = [];
+  const window = page(t, async (...args) => {
+    const response = await request(...args);
+    if (args[1] === 'POST') {
+      posted.push(args[2]);
+      if (lostResponse) { lostResponse = false; throw new TypeError('response lost'); }
+    }
+    return response;
+  });
+  const document = window.document;
+  await until(() => document.querySelector('.comments-empty') && idle(document));
+  const form = document.querySelector('.anonymous-comment-form');
+  form.elements.body.value = 'retry comment';
+  form.elements.pin.value = '0042';
+  const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  submit();
+  await until(() => document.querySelector('.anonymous-comment-status').classList.contains('is-error') && idle(document));
+  assert.equal(form.elements.pin.value, '0042');
+  submit();
+  await until(() => document.querySelector('.anonymous-comment') && idle(document));
+  assert.equal(posted.length, 2);
+  assert.equal(posted[0].id, posted[1].id);
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM comments').get().n, 1);
+  assert.equal(form.elements.pin.value, '');
+  assert.equal(window.localStorage.length, 0);
 });
 
 function githubComment(overrides = {}) {
@@ -106,6 +240,7 @@ test('the two test comments share one list, sort together, and anonymous posting
   await until(() => idle(document));
   assert.deepEqual(rows(document).map((row) => row.querySelector('.comment-provider').textContent), ['익명', 'GitHub']);
   document.querySelector('textarea').value = '새 익명 댓글';
+  document.querySelector('#anonymous-comment-pin').value = '1234';
   document.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   await until(() => rows(document).length === 3 && idle(document));
   assert.equal(document.querySelectorAll('.github-comment').length, 1);
@@ -163,7 +298,7 @@ test('pagination merges both sources across page boundaries without gaps or dupl
   const baseTime = Date.parse('2026-10-30T00:00:00Z');
   for (let index = 0; index < 55; index++) {
     const input = draft();
-    sqlite.prepare('INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, 'a', 'test', baseTime + index * 2000, 'private-hash');
+    sqlite.prepare('INSERT INTO comments (id, post, author, body, created_at, delete_hash) VALUES (?, ?, ?, ?, ?, ?)').run(input.id, POST, 'a', 'test', baseTime + index * 2000, 'private-hash');
     githubRows.push(githubComment({ id: `gh-${index}`, created_at: new Date(baseTime + index * 2000 + 1000).toISOString() }));
   }
   const github = (url) => {
