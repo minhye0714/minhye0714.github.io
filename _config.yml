@@ -15,7 +15,7 @@ timezone: Asia/Seoul
 # ↓ --------------------------
 
 title: Optimization Log # the main title Chirpy
-tagline: 글로벌 미니멈을 향한 작은 스텝들의 기록 # it will display as the subtitle
+tagline: ""
 
 description: >- # used by seo meta and the atom feed
   Machine Learning, Deep Learning, Probability Theory
@@ -98,7 +98,7 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar: /assets/img/profile.png
+avatar: /assets/img/profile.png?v=20261030
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 # It can be overridden by a customized `page.image` in front matter.

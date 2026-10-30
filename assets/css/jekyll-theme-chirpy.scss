@@ -2,7 +2,9 @@
 ---
 
 @use 'abstracts/variables' with (
-  $theme: '{{ site.theme_mode }}'
+  $theme: '{{ site.theme_mode }}',
+  $sidebar-width: 300px,
+  $sidebar-width-large: 340px
 );
 
 /* prettier-ignore */
@@ -12,7 +14,7 @@
 {%- endif -%}
 ';
 
-/* Home: keep Chirpy's post links and pagination, with a responsive card grid. */
+/* Home: title-only post links in a responsive card grid. */
 #post-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
@@ -28,9 +30,9 @@
   }
 
   .post-preview {
+    display: flex;
     position: relative;
     height: 100%;
-    flex-direction: column !important; /* Override Bootstrap's horizontal layout. */
     overflow: hidden;
     border: 1px solid var(--btn-border-color);
     border-radius: 1rem;
@@ -45,61 +47,17 @@
       outline: 2px solid var(--link-color);
       outline-offset: 4px;
     }
-
-    > [class^='col-'] {
-      width: 100%;
-    }
-
-    > :last-child {
-      display: flex;
-      flex: 1;
-    }
   }
 
   .card {
-    .preview-img,
-    .preview-img img {
-      border-radius: 0;
-    }
-
-    .preview-img img {
-      aspect-ratio: 16 / 9;
-      object-fit: cover;
-    }
-
     .card-body {
       width: 100%;
-      min-height: 16rem;
       padding: 1.5rem;
 
       .card-title {
         font-size: 1.2rem;
         line-height: 1.5;
         overflow-wrap: anywhere;
-      }
-
-      .card-text.content {
-        font-size: 0.95rem;
-
-        p {
-          -webkit-line-clamp: 3;
-          line-clamp: 3;
-          min-height: 5.1em;
-          line-height: 1.7;
-        }
-      }
-
-      .post-meta {
-        flex-grow: 0 !important;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: auto;
-        padding-top: 1rem;
-        border-top: 1px solid var(--btn-border-color);
-
-        > div:first-child {
-          white-space: normal;
-        }
       }
     }
   }
@@ -121,6 +79,25 @@
 
 /* Keep the category menu reachable on short screens and mobile drawers. */
 #sidebar {
+  .profile-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-inline: 1.25rem;
+    text-align: center;
+  }
+
+  #avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .site-title {
+    white-space: nowrap;
+  }
+
   .profile-wrapper,
   .sidebar-bottom {
     flex-shrink: 0;
