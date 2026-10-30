@@ -104,7 +104,7 @@ theme_mode: # [light | dark]
 cdn:
 
 # the avatar on sidebar, support local or CORS resources
-avatar: /assets/img/profile.png?v=96babb1462fa
+avatar: /assets/img/profile.png?v=723b16e206a5
 
 # The URL of the site-wide social preview image used in SEO `og:image` meta tag.
 # It can be overridden by a customized `page.image` in front matter.
@@ -139,6 +139,8 @@ comments:
   # Giscus options › https://giscus.app
   giscus:
     repo: minhye0714/minhye0714.github.io
+    # Public styles also work inside giscus when previewing on localhost.
+    theme_origin: "https://minhye0714.github.io"
     repo_id: R_kgDOTCkPBg
     category: Announcements
     category_id: DIC_kwDOTCkPBs4DJ-K-

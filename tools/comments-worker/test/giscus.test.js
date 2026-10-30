@@ -8,6 +8,7 @@ const script = source.slice(source.indexOf('<script>') + 8, source.lastIndexOf('
   .replace(/\{\{(.*?)\}\}/g, (_, expression) => {
     if (expression.includes('relative_url')) return JSON.stringify(expression.match(/'([^']+)'/)[1]);
     const config = {
+      'site.comments.giscus.theme_origin': 'https://minhye0714.github.io',
       'site.comments.giscus.repo': 'minhye0714/minhye0714.github.io',
       'site.comments.giscus.repo_id': 'repo-id',
       'site.comments.giscus.category': 'Announcements',
@@ -23,7 +24,7 @@ const script = source.slice(source.indexOf('<script>') + 8, source.lastIndexOf('
 
 test('separate post reactions preserve the existing editor, login, ordering and native comment interactions', async (t) => {
   const dom = new JSDOM('<!doctype html><article><div class="content">post</div><div id="post-reactions-anchor"></div><div class="post-tail-wrapper"></div><div id="post-comments-anchor"></div></article><div id="tail-wrapper"><nav class="post-navigation"></nav><footer></footer></div><template id="anonymous-comments-template"><section class="anonymous-comments"><div class="comment-list-panel"><div class="comment-list-heading"><h3 tabindex="-1">comments</h3></div><button class="comment-refresh">refresh</button></div><div class="comment-composers"><div class="anonymous-comment-composer"></div><p class="anonymous-comment-status"></p></div></section></template>', {
-    url: 'https://minhye0714.github.io/posts/sad-ai-syndrome/', runScripts: 'outside-only'
+    url: 'http://localhost:4000/posts/sad-ai-syndrome/', runScripts: 'outside-only'
   });
   t.after(() => dom.window.close());
   const { window } = dom;
@@ -48,6 +49,7 @@ test('separate post reactions preserve the existing editor, login, ordering and 
   assert.equal(listPanel.nextElementSibling.className, 'comment-composers');
   assert.equal(anonymousComposer.previousElementSibling.className, 'github-comments');
   assert.equal(section.querySelector('script').dataset.reactionsEnabled, '0');
+  assert.equal(new URL(section.querySelector('script').dataset.theme).origin, 'https://minhye0714.github.io');
   const iframe = window.document.createElement('iframe');
   iframe.className = 'giscus-frame';
   const editorUrl = 'https://giscus.app/ko/widget?session=encrypted-test-session&repo=blog&reactionsEnabled=0';
@@ -62,6 +64,7 @@ test('separate post reactions preserve the existing editor, login, ordering and 
   assert.equal(reactionUrl.searchParams.get('repo'), 'blog');
   assert.equal(reactionUrl.searchParams.get('reactionsEnabled'), '1');
   assert.match(reactionUrl.searchParams.get('theme'), /giscus-reactions-light\.css$/);
+  assert.equal(new URL(reactionUrl.searchParams.get('theme')).origin, 'https://minhye0714.github.io');
   const reactionSent = [];
   reactionFrame.contentWindow.postMessage = (message, origin) => { reactionSent.push({ message, origin }); };
   section.dispatchEvent(new window.CustomEvent('comments:ready'));

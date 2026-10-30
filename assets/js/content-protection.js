@@ -29,7 +29,7 @@
   }
 
   // Silent browser interaction restrictions, not a security boundary.
-  for (const type of ['copy', 'cut', 'selectstart', 'dragstart', 'contextmenu']) {
+  for (const type of ['copy', 'cut', 'dragstart', 'contextmenu']) {
     document.addEventListener(type, preventContentCopy, { capture: true });
   }
 })();

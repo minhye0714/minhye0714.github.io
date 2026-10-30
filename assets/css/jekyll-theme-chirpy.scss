@@ -80,6 +80,19 @@
   }
 }
 
+/* Separate the title and post details from the article body. */
+.post-header {
+  padding-bottom: 1.5rem;
+  border-bottom: 8pt solid var(--main-border-color);
+
+  > h1 {
+    font-size: clamp(2.5rem, 2rem + 1.5vw, 3.25rem);
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+}
+
 .post-pageviews {
   display: inline-flex;
   align-items: baseline;
@@ -89,12 +102,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Restrict article selection without affecting the comment editors. */
+/* Allow text selection while copy actions remain restricted. */
 [data-copy-protected],
 [data-copy-protected] * {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none;
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 
 [data-copy-protected] img,

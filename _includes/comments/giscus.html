@@ -2,17 +2,18 @@
 {% include comments/anonymous.html %}
 <script>
   (function () {
+    const themeOrigin = {{ site.comments.giscus.theme_origin | default: site.url | jsonify }} || window.location.origin;
     const themeMap = Theme.newThemeMap(
-      new URL({{ '/assets/css/giscus-light.css' | relative_url | jsonify }}, window.location.origin).href,
-      new URL({{ '/assets/css/giscus-dark.css' | relative_url | jsonify }}, window.location.origin).href
+      new URL({{ '/assets/css/giscus-light.css' | relative_url | jsonify }}, themeOrigin).href,
+      new URL({{ '/assets/css/giscus-dark.css' | relative_url | jsonify }}, themeOrigin).href
     );
     const composerThemeMap = Theme.newThemeMap(
-      new URL({{ '/assets/css/giscus-composer-light.css' | relative_url | jsonify }}, window.location.origin).href,
-      new URL({{ '/assets/css/giscus-composer-dark.css' | relative_url | jsonify }}, window.location.origin).href
+      new URL({{ '/assets/css/giscus-composer-light.css' | relative_url | jsonify }}, themeOrigin).href,
+      new URL({{ '/assets/css/giscus-composer-dark.css' | relative_url | jsonify }}, themeOrigin).href
     );
     const reactionsThemeMap = Theme.newThemeMap(
-      new URL({{ '/assets/css/giscus-reactions-light.css' | relative_url | jsonify }}, window.location.origin).href,
-      new URL({{ '/assets/css/giscus-reactions-dark.css' | relative_url | jsonify }}, window.location.origin).href
+      new URL({{ '/assets/css/giscus-reactions-light.css' | relative_url | jsonify }}, themeOrigin).href,
+      new URL({{ '/assets/css/giscus-reactions-dark.css' | relative_url | jsonify }}, themeOrigin).href
     );
     const reactionsEnabled = {{ site.comments.giscus.reactions_enabled | default: '1' | jsonify }} !== '0';
 
